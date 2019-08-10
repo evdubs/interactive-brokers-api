@@ -43,7 +43,7 @@
   (class object%
     (super-new)
     (init-field [client-id 0]
-                [handle-accounts-rsp (-> (listof string?) any)]
+                [handle-accounts-rsp (λ (a) void)]
                 [handle-contract-details-rsp (λ (cd) void)]
                 [handle-err-rsp (λ (e) void)]
                 [handle-execution-rsp (λ (e) void)]

@@ -29,11 +29,13 @@
 
 (define/contract ibkr-session%
   (class/c (init-field [client-id integer?]
+                       [handle-accounts-rsp (-> (listof string?) any)]
                        [handle-contract-details-rsp (-> contract-details-rsp? any)]
                        [handle-err-rsp (-> err-rsp? any)]
                        [handle-execution-rsp (-> execution-rsp? any)]
                        [handle-next-valid-id-rsp (-> next-valid-id-rsp? any)]
                        [handle-open-order-rsp (-> open-order-rsp? any)]
+                       [handle-server-time-rsp (-> date? any)]
                        [hostname string?]
                        [port-no port-number?])
            [connect (->m void?)]
@@ -41,11 +43,13 @@
   (class object%
     (super-new)
     (init-field [client-id 0]
+                [handle-accounts-rsp (-> (listof string?) any)]
                 [handle-contract-details-rsp (λ (cd) void)]
                 [handle-err-rsp (λ (e) void)]
                 [handle-execution-rsp (λ (e) void)]
                 [handle-next-valid-id-rsp (λ (nvi) void)]
                 [handle-open-order-rsp (λ (oo) void)]
+                [handle-server-time-rsp (λ (st) void)]
                 [hostname "127.0.0.1"]
                 [port-no 7497])
     
@@ -65,15 +69,22 @@
       ; read from ibkr-in forever
       (thread
        (λ () (do ()
-               (#f)
-               (match (parse-msg (read-sized-str ibkr-in))
-                 [(? contract-details-rsp? cd) (handle-contract-details-rsp cd)]
-                 [(? err-rsp? e) (handle-err-rsp e)]
-                 [(? execution-rsp? e) (handle-execution-rsp e)]
-                 [(? next-valid-id-rsp? nvi) (handle-next-valid-id-rsp nvi)]
-                 [(? open-order-rsp? oo) (handle-open-order-rsp oo)]
-                 [msg (writeln msg)]
-                 [_ (writeln "Can't process")])
+                 (#f)
+               (let ([msg (parse-msg (read-sized-str ibkr-in))])
+                 (cond
+                   [(contract-details-rsp? msg) (handle-contract-details-rsp msg)]
+                   [(date? msg) (handle-server-time-rsp msg)]
+                   [(err-rsp? msg) (handle-err-rsp msg)]
+                   [(execution-rsp? msg) (handle-execution-rsp msg)]
+                   [(next-valid-id-rsp? msg) (handle-next-valid-id-rsp msg)]
+                   [(open-order-rsp? msg) (handle-open-order-rsp msg)]
+                   ; we might want to just create an accounts structure that we can typecheck for
+                   ; rather than have to regex match what we think account strings look like
+                   [(and (list? msg)
+                         (< 0 (length msg))
+                         (foldl (λ (str res) (and res (regexp-match #rx"[A-Z]+[0-9]+" str))) #t msg))
+                    (handle-accounts-rsp msg)]
+                   [else (writeln msg)]))
                (channel-try-get req-rsp-channel))))
 
       ; EClient.sendV100APIHeader

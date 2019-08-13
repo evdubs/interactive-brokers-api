@@ -4,17 +4,19 @@
          racket/list
          racket/match
          racket/string
-         srfi/19)
+         srfi/19
+         "base-structs.rkt")
 
 (provide
  (contract-out
   [struct contract-details-rsp
     ((request-id integer?)
      (symbol string?)
-     (security-type string?)
-     (expiry string?)
-     (strike rational?)
-     (right string?)
+     (security-type (or/c 'stk 'opt 'fut 'cash 'bond 'cfd 'fop 'war 'iopt 'fwd 'bag
+                          'ind 'bill 'fund 'fixed 'slb 'news 'cmdty 'bsk 'icu 'ics #f))
+     (expiry (or/c date? #f))
+     (strike (or/c rational? #f))
+     (right (or/c 'call 'put #f))
      (exchange string?)
      (currency string?)
      (local-symbol string?)
@@ -153,9 +155,9 @@
      (trailing-percent (or/c rational? #f))
      (basis-points (or/c rational? #f))
      (basis-points-type (or/c integer? #f))
-     (combo-legs list?)
+     (combo-legs (listof combo-leg?))
      (order-combo-legs (listof rational?))
-     (smart-combo-routing-params list?)
+     (smart-combo-routing-params hash?)
      (scale-init-level-size (or/c integer? #f))
      (scale-subs-level-size (or/c integer? #f))
      (scale-price-increment (or/c rational? #f))
@@ -564,9 +566,25 @@
         (string->number (list-ref details 74)) ; trailing-percent
         (string->number (list-ref details 75)) ; basis-points
         (string->number (list-ref details 76)) ; basis-points-type
-        (list) ; combo-legs
-        (list) ; order-combo-legs
-        (list) ; smart-combo-routing-params
+        (map (λ (i) (combo-leg
+                     (string->number (list-ref details (+ 1 (* i 8) combo-legs-index))) ; contract-id
+                     (string->number (list-ref details (+ 2 (* i 8) combo-legs-index))) ; ratio
+                     (string->symbol (string-downcase (list-ref details (+ 3 (* i 8) combo-legs-index)))) ; action
+                     (list-ref details (+ 4 (* i 8) combo-legs-index)) ; exchange
+                     (match (list-ref details (+ 5 (* i 8) combo-legs-index))
+                       ["0" 'same]
+                       ["1" 'open]
+                       ["2" 'close]
+                       [_ #f]) ; open-close
+                     (string->number (list-ref details (+ 6 (* i 8) combo-legs-index))) ; short-sale-slot
+                     (list-ref details (+ 7 (* i 8) combo-legs-index)) ; designated-location
+                     (string->number (list-ref details (+ 8 (* i 8) combo-legs-index))) ; exempt-code
+                     ))
+             (range combo-legs-size)) ; combo-legs
+        (map (λ (i) (string->number (list-ref details (+ 1 (* i 1) order-combo-legs-index))))
+             (range order-combo-legs-size)) ; order-combo-legs
+        (apply hash (take (drop details (+ 1 smart-combo-routing-params-index))
+                          (* 2 smart-combo-routing-params-size)))
         (string->number (list-ref details scale-init-level-size-index)) ; scale-init-level-size
         (string->number (list-ref details (+ 1 scale-init-level-size-index))) ; scale-subs-level-size
         (string->number (list-ref details (+ 2 scale-init-level-size-index))) ; scale-price-increment
@@ -652,35 +670,40 @@
     [(list "9" version order-id) (next-valid-id-rsp (string->number order-id))]
     ; contract details
     [(list-rest "10" version details) (contract-details-rsp
-                                       (string->number (list-ref details 0))
-                                       (list-ref details 1)
-                                       (list-ref details 2)
-                                       (list-ref details 3)
-                                       (string->number (list-ref details 4))
-                                       (list-ref details 5)
-                                       (list-ref details 6)
-                                       (list-ref details 7)
-                                       (list-ref details 8)
-                                       (list-ref details 9)
-                                       (list-ref details 10)
-                                       (string->number (list-ref details 11))
-                                       (string->number (list-ref details 12))
-                                       (list-ref details 13)
-                                       (string-split (list-ref details 14) ",")
-                                       (string-split (list-ref details 15) ",")
-                                       (string->number (list-ref details 16))
-                                       (string->number (list-ref details 17))
-                                       (list-ref details 18)
-                                       (list-ref details 19)
-                                       (list-ref details 20)
-                                       (list-ref details 21)
-                                       (list-ref details 22)
-                                       (list-ref details 23)
-                                       (list-ref details 24)
-                                       (string-split (list-ref details 25) ";")
-                                       (string-split (list-ref details 26) ";")
-                                       (list-ref details 27)
-                                       (list-ref details 28))]
+                                       (string->number (list-ref details 0)) ; request-id
+                                       (list-ref details 1) ; symbol
+                                       (string->symbol (string-downcase (list-ref details 2))) ; security-type
+                                       (if (equal? "" (list-ref details 3))
+                                           #f (string->date (list-ref details 3) "~Y~m~d")) ; expiry
+                                       (string->number (list-ref details 4)) ; strike
+                                       (match (list-ref details 5)
+                                         ["C" 'call]
+                                         ["P" 'put]
+                                         [_ #f]) ; right
+                                       (list-ref details 6) ; exchange
+                                       (list-ref details 7) ; currency
+                                       (list-ref details 8) ; local-symbol
+                                       (list-ref details 9) ; market-name
+                                       (list-ref details 10) ; trading-class
+                                       (string->number (list-ref details 11)) ; contract-id
+                                       (string->number (list-ref details 12)) ; minimum-tick-increment
+                                       (list-ref details 13) ; multiplier
+                                       (string-split (list-ref details 14) ",") ; order-types
+                                       (string-split (list-ref details 15) ",") ; valid-exchanges
+                                       (string->number (list-ref details 16)) ; price-magnifier
+                                       (string->number (list-ref details 17)) ; underlying-contract-id
+                                       (list-ref details 18) ; long-name
+                                       (list-ref details 19) ; primary-exchange
+                                       (list-ref details 20) ; contract-month
+                                       (list-ref details 21) ; industry
+                                       (list-ref details 22) ; category
+                                       (list-ref details 23) ; subcategory
+                                       (list-ref details 24) ; time-zone-id
+                                       (string-split (list-ref details 25) ";") ; trading-hours
+                                       (string-split (list-ref details 26) ";") ; liquid-hours
+                                       (list-ref details 27) ; ev-rule
+                                       (list-ref details 28) ; ev-multiplier
+                                       )]
     ; execution
     [(list-rest "11" version details) (execution-rsp
                                        (string->number (list-ref details 0)) ; request-id

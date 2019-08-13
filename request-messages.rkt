@@ -6,10 +6,12 @@
                   date->seconds)
          racket/match
          racket/string
-         srfi/19)
+         srfi/19
+         "base-structs.rkt")
 
 (provide contract-details-req%
          executions-req%
+         open-orders-req%
          place-order-req%
          req-msg<%>
          start-api-req%)
@@ -127,6 +129,19 @@
        exchange "\0"
        (if (symbol? side) (string-upcase (symbol->string side)) "") "\0"))))
 
+(define/contract open-orders-req%
+  (class/c (inherit-field [msg-id integer?]
+                          [version integer?]))
+  (class* ibkr-msg%
+    (req-msg<%>)
+    (super-new [msg-id 5]
+               [version 1])
+    (inherit-field msg-id version)
+    (define/public (->string)
+      (string-append
+       (number->string msg-id) "\0"
+       (number->string version) "\0"))))
+
 (define/contract place-order-req%
   (class/c (inherit-field [msg-id integer?]
                           [version integer?])
@@ -165,9 +180,9 @@
                        [trigger-method integer?]
                        [outside-rth boolean?]
                        [hidden boolean?]
-                       [combo-legs list?]
+                       [combo-legs (listof combo-leg?)]
                        [order-combo-legs (listof rational?)]
-                       [smart-combo-routing-params list?]
+                       [smart-combo-routing-params hash?]
                        [discretionary-amount (or/c rational? #f)]
                        [good-after-time (or/c date? #f)]
                        [good-till-date (or/c date? #f)]
@@ -296,12 +311,9 @@
                 [trigger-method 0]
                 [outside-rth #f]
                 [hidden #f]
-                ; not handled at this moment
                 [combo-legs (list)]
-                ; not handled at this moment
                 [order-combo-legs (list)]
-                ; not handled at this moment
-                [smart-combo-routing-params (list)]
+                [smart-combo-routing-params (hash)]
                 [discretionary-amount #f]
                 [good-after-time #f]
                 [good-till-date #f]
@@ -423,9 +435,38 @@
        (number->string trigger-method) "\0"
        (if outside-rth "1" "0") "\0"
        (if hidden "1" "0") "\0"
-       ; combo-legs not handled at this moment
-       ; order-combo-legs not handled at this moment
-       ; smart-combo-routing-params not handled at this moment
+       (if (equal? 'bag security-type)
+           (string-append
+            (number->string (length combo-legs)) "\0"
+            (apply string-append
+                   (map (λ (cl) (string-append (number->string (combo-leg-contract-id cl)) "\0"
+                                               (number->string (combo-leg-ratio cl)) "\0"
+                                               (string-upcase (symbol->string (combo-leg-action cl))) "\0"
+                                               (combo-leg-exchange cl) "\0"
+                                               (match (combo-leg-open-close cl)
+                                                 ['same "0"]
+                                                 ['open "1"]
+                                                 ['close "2"]
+                                                 [_ "3"]) "\0"
+                                               (number->string (combo-leg-short-sale-slot cl)) "\0"
+                                               (combo-leg-designated-location cl) "\0"
+                                               (number->string (combo-leg-exempt-code cl)) "\0"))
+                        combo-legs)))
+           "")
+       (if (equal? 'bag security-type)
+           (string-append
+            (number->string (length order-combo-legs)) "\0"
+            (apply string-append
+                   (map (λ (ocl) (string-append (number->string ocl) "\0"))
+                        order-combo-legs)))
+           "")
+       (if (equal? 'bag security-type)
+           (string-append
+            (number->string (hash-count smart-combo-routing-params)) "\0"
+            (apply string-append
+                   (hash-map smart-combo-routing-params
+                             (λ (k v) (string-append k "\0" v "\0")))))
+           "")
        ; deprecated shares-allocation
        "\0"
        (if (rational? discretionary-amount) (real->decimal-string discretionary-amount 3) "") "\0"

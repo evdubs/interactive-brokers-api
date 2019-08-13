@@ -4,6 +4,7 @@
          racket/class
          racket/contract
          racket/match
+         racket/string
          racket/tcp
          srfi/19 ; Time and Date Functions
          "request-messages.rkt"
@@ -37,7 +38,8 @@
                        [handle-open-order-rsp (-> open-order-rsp? any)]
                        [handle-server-time-rsp (-> date? any)]
                        [hostname string?]
-                       [port-no port-number?])
+                       [port-no port-number?]
+                       [write-messages boolean?])
            [connect (->m void?)]
            [send-msg (->m (is-a?/c req-msg<%>) void?)])
   (class object%
@@ -51,7 +53,8 @@
                 [handle-open-order-rsp (λ (oo) void)]
                 [handle-server-time-rsp (λ (st) void)]
                 [hostname "127.0.0.1"]
-                [port-no 7497])
+                [port-no 7497]
+                [write-messages #f])
     
     ; there seem to be issues when we attempt to read from ibkr-in when we send several messages
     ; to ibkr-out before we receive the first message. this channel exists to make sure that we
@@ -70,7 +73,9 @@
       (thread
        (λ () (do ()
                  (#f)
-               (let ([msg (parse-msg (read-sized-str ibkr-in))])
+               (let* ([str (read-sized-str ibkr-in)]
+                      [msg (parse-msg str)])
+                 (cond [write-messages (display "Received: ") (writeln (string-split (bytes->string/utf-8 str) "\0"))])
                  (cond
                    [(contract-details-rsp? msg) (handle-contract-details-rsp msg)]
                    [(date? msg) (handle-server-time-rsp msg)]
@@ -97,5 +102,6 @@
       (channel-put req-rsp-channel #f))
 
     (define/public (send-msg msg)
+      (cond [write-messages (display "Sending: ") (writeln (string-split (send msg ->string) "\0"))])
       (write-sized-str (send msg ->string) ibkr-out)
       (channel-put req-rsp-channel #f))))

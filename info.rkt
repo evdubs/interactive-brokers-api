@@ -4,5 +4,6 @@
 
 (define version "972.18.0")
 
-(define deps (list "binaryio"
+(define deps (list "base"
+                   "binaryio"
                    "srfi-lite-lib"))

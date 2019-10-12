@@ -710,7 +710,7 @@
                                        (string->number (list-ref details 1)) ; order-id
                                        (string->number (list-ref details 2)) ; contract-id
                                        (list-ref details 3) ; symbol
-                                       (symbol->string (string-downcase (list-ref details 4))) ; security-type
+                                       (string->symbol (string-downcase (list-ref details 4))) ; security-type
                                        (if (equal? "" (list-ref details 5))
                                            #f (string->date (list-ref details 5) "~Y~m~d")) ; expiry
                                        (string->number (list-ref details 6)) ; strike
@@ -725,7 +725,7 @@
                                        (list-ref details 12) ; trading-class
                                        (list-ref details 13) ; execution-id
                                        ; take out the time-zone-name as srfi/19 does not handle this. assume local time zone
-                                       (string->date (first (regexp-match #px"([0-9]{8} [0-9]{2}:[0-9]{2}:[0-9]{2}) [A-Z]+"
+                                       (string->date (first (regexp-match #px"([0-9]{8} +[0-9]{2}:[0-9]{2}:[0-9]{2})( [A-Z]+)?"
                                                                           (list-ref details 14))) "~Y~m~d ~H:~M:~S") ; timestamp
                                        (list-ref details 15) ; account
                                        (list-ref details 16) ; executing-exchange

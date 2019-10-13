@@ -73,7 +73,7 @@
      (average-price rational?)
      (order-reference string?)
      (ev-rule string?)
-     (ev-multiplier rational?)
+     (ev-multiplier (or/c rational? #f))
      (model-code string?))]
   [struct next-valid-id-rsp
     ((order-id integer?))]

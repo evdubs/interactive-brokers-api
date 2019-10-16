@@ -252,7 +252,9 @@
                        [pegged-change-amount rational?]
                        [reference-change-amount rational?]
                        [reference-exchange-id string?]
-                       [conditions list?]
+                       [conditions (listof condition?)]
+                       [conditions-ignore-rth boolean?]
+                       [conditions-cancel-order boolean?]
                        [adjusted-order-type (or/c 'mkt 'lmt 'stp 'stp-limit 'rel 'trail 'box-top 'fix-pegged 'lit 'lmt-+-mkt
                                                   'loc 'mit 'mkt-prt 'moc 'mtl 'passv-rel 'peg-bench 'peg-mid 'peg-mkt 'peg-prim
                                                   'peg-stk 'rel-+-lmt 'rel-+-mkt 'snap-mid 'snap-mkt 'snap-prim 'stp-prt
@@ -384,6 +386,8 @@
                 [reference-change-amount 0]
                 [reference-exchange-id ""]
                 [conditions (list)]
+                [conditions-ignore-rth #f]
+                [conditions-cancel-order #f]
                 [adjusted-order-type #f]
                 [trigger-price 0]
                 [limit-price-offset 0]
@@ -403,7 +407,7 @@
        symbol "\0"
        (if (symbol? security-type) (string-upcase (symbol->string security-type)) "") "\0"
        (if (date? expiry) (date->string expiry "~Y~m~d") "") "\0"
-       (real->decimal-string strike 3) "\0"
+       (real->decimal-string strike 2) "\0"
        (if (symbol? right) (string-upcase (substring (symbol->string right) 0 1)) "") "\0"
        (if (rational? multiplier) (number->string multiplier) "") "\0"
        exchange "\0"
@@ -414,10 +418,10 @@
        (if (symbol? security-id-type) (string-upcase (symbol->string security-id-type)) "") "\0"
        security-id "\0"
        (string-upcase (symbol->string action)) "\0"
-       (real->decimal-string total-quantity 3) "\0"
+       (real->decimal-string total-quantity 2) "\0"
        order-type "\0"
-       (if (rational? limit-price) (real->decimal-string limit-price 3) "") "\0"
-       (if (rational? aux-price) (real->decimal-string aux-price 3) "") "\0"
+       (if (rational? limit-price) (real->decimal-string limit-price 2) "") "\0"
+       (if (rational? aux-price) (real->decimal-string aux-price 2) "") "\0"
        (string-upcase (symbol->string time-in-force)) "\0"
        oca-group "\0"
        account "\0"
@@ -469,7 +473,7 @@
            "")
        ; deprecated shares-allocation
        "\0"
-       (if (rational? discretionary-amount) (real->decimal-string discretionary-amount 3) "") "\0"
+       (if (rational? discretionary-amount) (real->decimal-string discretionary-amount 2) "") "\0"
        (if (date? good-after-time)
            (string-append (date->string good-after-time "~Y~m~d ~H:~M:~S ")
                           ; convert from date to date* which has time zone name
@@ -490,40 +494,40 @@
        settling-firm "\0"
        (if all-or-none "1" "0") "\0"
        (if (integer? minimum-quantity) (number->string minimum-quantity) "") "\0"
-       (if (rational? percent-offset) (real->decimal-string percent-offset 3) "") "\0"
+       (if (rational? percent-offset) (real->decimal-string percent-offset 2) "") "\0"
        (if electronic-trade-only "1" "0") "\0"
        (if firm-quote-only "1" "0") "\0"
-       (if (rational? nbbo-price-cap) (real->decimal-string nbbo-price-cap 3) "") "\0"
+       (if (rational? nbbo-price-cap) (real->decimal-string nbbo-price-cap 2) "") "\0"
        (match auction-strategy
          ['match "1"]
          ['improvement "2"]
          ['transparent "3"]
          [_ "0"])
        "\0"
-       (real->decimal-string starting-price 3) "\0"
-       (real->decimal-string stock-ref-price 3) "\0"
-       (if (rational? delta) (real->decimal-string delta 3) "") "\0"
-       (real->decimal-string stock-range-lower 3) "\0"
-       (real->decimal-string stock-range-upper 3) "\0"
+       (real->decimal-string starting-price 2) "\0"
+       (real->decimal-string stock-ref-price 2) "\0"
+       (if (rational? delta) (real->decimal-string delta 2) "") "\0"
+       (real->decimal-string stock-range-lower 2) "\0"
+       (real->decimal-string stock-range-upper 2) "\0"
        (if override-percentage-constraints "1" "0") "\0"
-       (if (rational? volatility) (real->decimal-string (* 100 volatility) 3) "") "\0"
+       (if (rational? volatility) (real->decimal-string (* 100 volatility) 2) "") "\0"
        (if (integer? volatility-type) (number->string volatility-type) "") "\0"
        ; there is some additional logic surrounding the delta neutral order type but
        ; it is currently unknown how to properly construct it, so we'll send nothing
        "" "\0"
-       (if (rational? delta-neutral-aux-price) (real->decimal-string delta-neutral-aux-price 3) "") "\0"
+       (if (rational? delta-neutral-aux-price) (real->decimal-string delta-neutral-aux-price 2) "") "\0"
        (number->string continuous-update) "\0"
        (if (integer? reference-price-type) (number->string reference-price-type) "") "\0"
-       (if (rational? trailing-stop-price) (real->decimal-string trailing-stop-price 3) "") "\0"
-       (if (rational? trailing-percent) (real->decimal-string (* 100 trailing-percent) 3) "") "\0"
+       (if (rational? trailing-stop-price) (real->decimal-string trailing-stop-price 2) "") "\0"
+       (if (rational? trailing-percent) (real->decimal-string (* 100 trailing-percent) 2) "") "\0"
        (if (integer? scale-init-level-size) (number->string scale-init-level-size) "") "\0"
        (if (integer? scale-subs-level-size) (number->string scale-subs-level-size) "") "\0"
        (if (rational? scale-price-increment)
            (string-append
-            (real->decimal-string scale-price-increment 3) "\0"
-            (if (rational? scale-price-adjust-value) (real->decimal-string scale-price-adjust-value 3) "") "\0"
+            (real->decimal-string scale-price-increment 2) "\0"
+            (if (rational? scale-price-adjust-value) (real->decimal-string scale-price-adjust-value 2) "") "\0"
             (if (integer? scale-price-adjust-interval) (number->string scale-price-adjust-interval) "") "\0"
-            (if (rational? scale-profit-offset) (real->decimal-string scale-profit-offset 3) "") "\0"
+            (if (rational? scale-profit-offset) (real->decimal-string scale-profit-offset 2) "") "\0"
             (if scale-auto-reset "1" "0") "\0"
             (if (integer? scale-init-position) (number->string scale-init-position) "") "\0"
             (if (integer? scale-init-fill-quantity) (number->string scale-init-fill-quantity) "") "\0"
@@ -550,8 +554,8 @@
            (string-append
             "1" "\0"
             (number->string delta-neutral-contract-id) "\0"
-            (real->decimal-string delta-neutral-delta 3) "\0"
-            (real->decimal-string delta-neutral-price 3))
+            (real->decimal-string delta-neutral-delta 2) "\0"
+            (real->decimal-string delta-neutral-price 2))
            "0")
        "\0"
        ; there is additional logic with algo strategy that we are not sure of
@@ -568,21 +572,47 @@
            (string-append
             (number->string reference-contract-id) "\0"
             (if is-pegged-change-amount-decrease "1" "0") "\0"
-            (real->decimal-string pegged-change-amount 3) "\0"
-            (real->decimal-string reference-change-amount 3) "\0"
+            (real->decimal-string pegged-change-amount 2) "\0"
+            (real->decimal-string reference-change-amount 2) "\0"
             reference-exchange-id "\0")
            "")
-       ; extra logic surrounding conditions we're not sure how to represent
-       "0" "\0"
+       (number->string (length conditions)) "\0"
+       (if (< 0 (length conditions))
+           (string-append
+            (apply string-append
+                   (map (λ (c)
+                          (string-append
+                           (match (condition-type c) ['price "1"] ['time "3"] ['margin "4"] ['execution "5"] ['volume "6"] ['percent-change "7"]) "\0"
+                           (match (condition-boolean-operator c) ['and "a"] ['or "o"]) "\0"
+                           (match (condition-comparator c) ['less-than "0"] ['greater-than "1"]) "\0"
+                           (match (condition-type c)
+                             ['price (string-append
+                                      (real->decimal-string (condition-value c) 2) "\0"
+                                      (number->string (condition-contract-id c)) "\0"
+                                      (condition-exchange c) "\0"
+                                      (match (condition-trigger-method c)
+                                        ['default "0"]
+                                        ['double-bid/ask "1"]
+                                        ['last "2"]
+                                        ['double-last "3"]
+                                        ['bid/ask "4"]
+                                        ['last-of-bid/ask "7"]
+                                        ['mid-point "8"]) "\0")]
+                             ['time (string-append
+                                     (date->string (condition-value c) "~Y-~m-~d ~H:~M:~S") "\0")])))
+                        conditions))
+            (if conditions-ignore-rth "1" "0") "\0"
+            (if conditions-cancel-order "1" "0") "\0")
+           "")
        (if (symbol? adjusted-order-type)
            (string-replace (string-upcase (symbol->string order-type)) "-" " ")
            "")
        "\0"
-       (real->decimal-string trigger-price 3) "\0"
-       (real->decimal-string limit-price-offset 3) "\0"
-       (real->decimal-string adjusted-stop-price 3) "\0"
-       (real->decimal-string adjusted-stop-limit-price 3) "\0"
-       (real->decimal-string adjusted-trailing-amount 3) "\0"
+       (real->decimal-string trigger-price 2) "\0"
+       (real->decimal-string limit-price-offset 2) "\0"
+       (real->decimal-string adjusted-stop-price 2) "\0"
+       (real->decimal-string adjusted-stop-limit-price 2) "\0"
+       (real->decimal-string adjusted-trailing-amount 2) "\0"
        (number->string adjusted-trailing-unit) "\0"
        ext-operator "\0"
        soft-dollar-tier-name "\0"

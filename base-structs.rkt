@@ -1,8 +1,7 @@
 #lang racket/base
 
-(require racket/contract
-         srfi/19 ; Time Data Types and Procedures
-         )
+(require gregor
+         racket/contract)
 
 (provide
  (contract-out
@@ -19,7 +18,7 @@
     ((type (or/c 'price 'time 'margin 'execution 'volume 'percent-change))
      (boolean-operator (or/c 'and 'or))
      (comparator (or/c 'less-than 'greater-than))
-     (value (or/c rational? date?))
+     (value (or/c rational? moment?))
      (contract-id (or/c integer? #f))
      (exchange (or/c string? #f))
      (trigger-method (or/c 'default 'double-bid/ask 'last 'double-last 'bid/ask 'last-of-bid/ask 'mid-point #f)))]))

@@ -1,12 +1,10 @@
 #lang racket/base
 
-(require racket/class
+(require gregor
+         racket/class
          racket/contract
-         (only-in racket/date
-                  date->seconds)
          racket/match
          racket/string
-         srfi/19
          "base-structs.rkt")
 
 (provide contract-details-req%
@@ -78,7 +76,7 @@
        (number->string contract-id) "\0"
        symbol "\0"
        (if (symbol? security-type) (string-upcase (symbol->string security-type)) "") "\0"
-       (if (date? expiry) (date->string expiry "~Y~m~d") "") "\0"
+       (if (date? expiry) (~t expiry "yyyyMMdd") "") "\0"
        (real->decimal-string strike 3) "\0"
        (if (symbol? right) (string-upcase (substring (symbol->string right) 0 1)) "") "\0"
        (if (rational? multiplier) (number->string multiplier) "") "\0"
@@ -97,7 +95,7 @@
            (init-field [request-id integer?]
                        [client-id integer?]
                        [account string?]
-                       [timestamp (or/c date? #f)]
+                       [timestamp (or/c moment? #f)]
                        [symbol string?]
                        [security-type (or/c 'stk 'opt 'fut 'cash 'bond 'cfd 'fop 'war 'iopt 'fwd 'bag
                                             'ind 'bill 'fund 'fixed 'slb 'news 'cmdty 'bsk 'icu 'ics #f)]
@@ -123,7 +121,7 @@
        (number->string request-id) "\0"
        (number->string client-id) "\0"
        account "\0"
-       (if (date? timestamp) (string->date timestamp "~Y~m~d-~H:~M:~S") "") "\0"
+       (if (moment? timestamp) (~t timestamp "yyyyMMdd-HH:mm:ss") "") "\0"
        symbol "\0"
        (if (symbol? security-type) (string-upcase (symbol->string security-type)) "") "\0"
        exchange "\0"
@@ -184,7 +182,7 @@
                        [order-combo-legs (listof rational?)]
                        [smart-combo-routing-params hash?]
                        [discretionary-amount (or/c rational? #f)]
-                       [good-after-time (or/c date? #f)]
+                       [good-after-time (or/c moment? #f)]
                        [good-till-date (or/c date? #f)]
                        [advisor-group string?]
                        [advisor-method string?]
@@ -406,7 +404,7 @@
        (number->string contract-id) "\0"
        symbol "\0"
        (if (symbol? security-type) (string-upcase (symbol->string security-type)) "") "\0"
-       (if (date? expiry) (date->string expiry "~Y~m~d") "") "\0"
+       (if (date? expiry) (~t expiry "yyyyMMdd") "") "\0"
        (real->decimal-string strike 2) "\0"
        (if (symbol? right) (string-upcase (substring (symbol->string right) 0 1)) "") "\0"
        (if (rational? multiplier) (number->string multiplier) "") "\0"
@@ -474,13 +472,8 @@
        ; deprecated shares-allocation
        "\0"
        (if (rational? discretionary-amount) (real->decimal-string discretionary-amount 2) "") "\0"
-       (if (date? good-after-time)
-           (string-append (date->string good-after-time "~Y~m~d ~H:~M:~S ")
-                          ; convert from date to date* which has time zone name
-                          (date*-time-zone-name (seconds->date (date->seconds good-after-time))))
-           "")
-       "\0"
-       (if (date? good-till-date) (date->string good-till-date "~Y~m~d") "") "\0"
+       (if (moment? good-after-time) (~t good-after-time "yyyyMMdd HH:mm:ss z") "") "\0"
+       (if (date? good-till-date) (~t good-till-date "yyyyMMdd") "") "\0"
        advisor-group "\0"
        advisor-method "\0"
        advisor-percentage "\0"
@@ -599,7 +592,7 @@
                                         ['last-of-bid/ask "7"]
                                         ['mid-point "8"]) "\0")]
                              ['time (string-append
-                                     (date->string (condition-value c) "~Y-~m-~d ~H:~M:~S") "\0")])))
+                                     (~t (condition-value c) "yyyy-MM-dd HH:mm:ss") "\0")])))
                         conditions))
             (if conditions-ignore-rth "1" "0") "\0"
             (if conditions-cancel-order "1" "0") "\0")

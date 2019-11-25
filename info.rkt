@@ -6,4 +6,4 @@
 
 (define deps (list "base"
                    "binaryio"
-                   "srfi-lite-lib"))
+                   "gregor-lib"))

@@ -1,12 +1,11 @@
 #lang racket/base
 
 (require binaryio
+         gregor
          racket/class
          racket/contract
-         racket/match
          racket/string
          racket/tcp
-         srfi/19 ; Time and Date Functions
          "request-messages.rkt"
          "response-messages.rkt")
 
@@ -36,7 +35,7 @@
                        [handle-execution-rsp (-> execution-rsp? any)]
                        [handle-next-valid-id-rsp (-> next-valid-id-rsp? any)]
                        [handle-open-order-rsp (-> open-order-rsp? any)]
-                       [handle-server-time-rsp (-> date? any)]
+                       [handle-server-time-rsp (-> moment? any)]
                        [hostname string?]
                        [port-no port-number?]
                        [write-messages boolean?])
@@ -78,7 +77,7 @@
                  (cond [write-messages (display "Received: ") (writeln (string-split (bytes->string/utf-8 str) "\0"))])
                  (cond
                    [(contract-details-rsp? msg) (handle-contract-details-rsp msg)]
-                   [(date? msg) (handle-server-time-rsp msg)]
+                   [(moment? msg) (handle-server-time-rsp msg)]
                    [(err-rsp? msg) (handle-err-rsp msg)]
                    [(execution-rsp? msg) (handle-execution-rsp msg)]
                    [(next-valid-id-rsp? msg) (handle-next-valid-id-rsp msg)]

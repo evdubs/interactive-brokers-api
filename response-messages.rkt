@@ -1,10 +1,10 @@
 #lang racket/base
 
-(require racket/contract
+(require gregor
+         racket/contract
          racket/list
          racket/match
          racket/string
-         srfi/19
          "base-structs.rkt")
 
 (provide
@@ -60,7 +60,7 @@
      (local-symbol string?)
      (trading-class string?)
      (execution-id string?)
-     (timestamp date?)
+     (timestamp moment?)
      (account string?)
      (executing-exchange string?)
      (side string?)
@@ -107,7 +107,7 @@
      (outside-rth boolean?)
      (hidden boolean?)
      (discretionary-amount (or/c rational? #f))
-     (good-after-time (or/c date? #f))
+     (good-after-time (or/c moment? #f))
      (advisor-group string?)
      (advisor-method string?)
      (advisor-percentage string?)
@@ -197,7 +197,7 @@
      (pegged-change-amount (or/c rational? #f))
      (reference-change-amount (or/c rational? #f))
      (reference-exchange-id string?)
-     (conditions list?)
+     (conditions (listof condition?))
      (adjusted-order-type (or/c 'mkt 'lmt 'stp 'stp-limit 'rel 'trail 'box-top 'fix-pegged 'lit 'lmt-+-mkt
                                 'loc 'mit 'mkt-prt 'moc 'mtl 'passv-rel 'peg-bench 'peg-mid 'peg-mkt 'peg-prim
                                 'peg-stk 'rel-+-lmt 'rel-+-mkt 'snap-mid 'snap-mkt 'snap-prim 'stp-prt
@@ -430,7 +430,7 @@
 ; convert a byte string message received over the wire to the appropriate structure
 (define/contract (parse-msg str)
   (-> bytes? (or/c contract-details-rsp?
-                   date?
+                   moment?
                    err-rsp?
                    execution-rsp?
                    (listof string?)
@@ -474,7 +474,7 @@
         (list-ref details 2) ; symbol
         (string->symbol (string-downcase (list-ref details 3))) ; security-type
         (if (equal? "" (list-ref details 4))
-            #f (string->date (list-ref details 4) "~Y~m~d")) ; expiry
+            #f (parse-date (list-ref details 4) "yyyyMMdd")) ; expiry
         (string->number (list-ref details 5)) ; strike
         (match (list-ref details 6)
           ["C" 'call]
@@ -508,8 +508,8 @@
         (string->number (list-ref details 27)) ; discretionary-amount
         ; take out the time-zone-name as srfi/19 does not handle this. assume local time zone
         (if (equal? "" (list-ref details 28))
-            #f (string->date (first (regexp-match #px"([0-9]{8} [0-9]{2}:[0-9]{2}:[0-9]{2}) [A-Z]+"
-                                                  (list-ref details 28))) "~Y~m~d ~H:~M:~S")) ; good-after-time
+            #f (parse-moment (second (regexp-match #px"([0-9]{8} [0-9]{2}:[0-9]{2}:[0-9]{2}) [A-Z]+"
+                                                   (list-ref details 28))) "yyyyMMdd HH:mm:ss")) ; good-after-time
         ; deprecated shares allocation
         (list-ref details 30) ; advisor-group
         (list-ref details 31) ; advisor-method
@@ -517,7 +517,7 @@
         (list-ref details 33) ; advisor-profile
         (list-ref details 34) ; model-code
         (if (equal? "" (list-ref details 35))
-            #f (string->date (list-ref details 35) "~Y~m~d")) ; good-till-date
+            #f (parse-date (list-ref details 35) "yyyyMMdd")) ; good-till-date
         (list-ref details 36) ; rule-80-a
         (string->number (list-ref details 37)) ; percent-offset
         (list-ref details 38) ; settling-firm
@@ -646,7 +646,31 @@
             (string->number (list-ref details (+ 16 solicited-index))) #f) ; reference-change-amount
         (if (equal? "PEG BENCH" (list-ref details 14))
             (list-ref details (+ 17 solicited-index)) "") ; reference-exchange-id
-        (list) ; conditions
+        (map (λ (i)
+               (match (list-ref details (+ 1 conditions-index))
+                 ["1" (condition
+                       'price ; type
+                       ; we have a default case below because we have received "n" before, which shouldn't be possible,
+                       ; but the Java library treats everything not "a" as the 'or case
+                       (match (list-ref details (+ 2 conditions-index)) ["a" 'and] ["o" 'or] [_ 'or]) ; boolean-operator
+                       (match (list-ref details (+ 3 conditions-index)) ["0" 'less-than] ["1" 'greater-than]) ; comparator
+                       (string->number (list-ref details (+ 4 conditions-index))) ; price
+                       (string->number (list-ref details (+ 5 conditions-index))) ; contract-id
+                       (list-ref details (+ 6 conditions-index)) ; exchange
+                       (match (list-ref details (+ 7 conditions-index))
+                         ["0" 'default]
+                         ["1" 'double-bid/ask]
+                         ["2" 'last]
+                         ["3" 'double-last]
+                         ["4" 'bid/ask]
+                         ["7" 'last-of-bid/ask]
+                         ["8" 'mid-point]))] ; trigger-method
+                 ["3" (condition
+                       'time ; type
+                       (match (list-ref details (+ 2 conditions-index)) ["a" 'and] ["o" 'or]) ; boolean-operator
+                       (match (list-ref details (+ 3 conditions-index)) ["0" 'less-than] ["1" 'greater-than]) ; comparator
+                       (parse-moment (list-ref details (+ 4 conditions-index)) "yyyyMMdd HH:mm:ss"))])) ; time
+             (range conditions-size)) ; conditions
         (if (equal? "None" (list-ref details adjusted-order-type-index))
             #f (string->symbol (string-downcase (string-replace (list-ref details adjusted-order-type-index) "_" "-")))) ; adjusted-order-type
         (if (equal? "1.7976931348623157E308" (list-ref details (+ 1 adjusted-order-type-index)))
@@ -674,7 +698,7 @@
                                        (list-ref details 1) ; symbol
                                        (string->symbol (string-downcase (list-ref details 2))) ; security-type
                                        (if (equal? "" (list-ref details 3))
-                                           #f (string->date (list-ref details 3) "~Y~m~d")) ; expiry
+                                           #f (parse-date (list-ref details 3) "yyyyMMdd")) ; expiry
                                        (string->number (list-ref details 4)) ; strike
                                        (match (list-ref details 5)
                                          ["C" 'call]
@@ -712,7 +736,7 @@
                                        (list-ref details 3) ; symbol
                                        (string->symbol (string-downcase (list-ref details 4))) ; security-type
                                        (if (equal? "" (list-ref details 5))
-                                           #f (string->date (list-ref details 5) "~Y~m~d")) ; expiry
+                                           #f (parse-date (list-ref details 5) "yyyyMMdd")) ; expiry
                                        (string->number (list-ref details 6)) ; strike
                                        (match (list-ref details 7)
                                          ["C" 'call]
@@ -725,8 +749,8 @@
                                        (list-ref details 12) ; trading-class
                                        (list-ref details 13) ; execution-id
                                        ; take out the time-zone-name as srfi/19 does not handle this. assume local time zone
-                                       (string->date (first (regexp-match #px"([0-9]{8} +[0-9]{2}:[0-9]{2}:[0-9]{2})( [A-Z]+)?"
-                                                                          (list-ref details 14))) "~Y~m~d ~H:~M:~S") ; timestamp
+                                       (parse-moment (second (regexp-match #px"([0-9]{8} [0-9]{2}:[0-9]{2}:[0-9]{2}) [A-Z]+"
+                                                                           (list-ref details 14))) "yyyyMMdd  HH:mm:ss") ; timestamp
                                        (list-ref details 15) ; account
                                        (list-ref details 16) ; executing-exchange
                                        (list-ref details 17) ; side
@@ -745,6 +769,6 @@
     ; managed accounts
     [(list-rest "15" num-accts accts) accts]
     ; current timestamp
-    [(list "106" date-str) (string->date (substring date-str 0 (- (string-length date-str) 4)) ; chop off timezone
-                                         "~Y~m~d ~H:~M:~S")]
+    [(list "106" date-str) (parse-moment (second (regexp-match #px"([0-9]{8} [0-9]{2}:[0-9]{2}:[0-9]{2}) [A-Z]+"
+                                                               date-str)) "yyyyMMdd HH:mm:ss")]
     [_ (string-split (bytes->string/utf-8 str) "\0")]))

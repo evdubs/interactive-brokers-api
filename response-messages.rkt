@@ -749,7 +749,7 @@
                                        (list-ref details 12) ; trading-class
                                        (list-ref details 13) ; execution-id
                                        ; take out the time-zone-name as srfi/19 does not handle this. assume local time zone
-                                       (parse-moment (second (regexp-match #px"([0-9]{8} [0-9]{2}:[0-9]{2}:[0-9]{2}) [A-Z]+"
+                                       (parse-moment (second (regexp-match #px"([0-9]{8} +[0-9]{2}:[0-9]{2}:[0-9]{2})( [A-Z]+)?"
                                                                            (list-ref details 14))) "yyyyMMdd  HH:mm:ss") ; timestamp
                                        (list-ref details 15) ; account
                                        (list-ref details 16) ; executing-exchange

@@ -597,3 +597,41 @@ This response is largely just telling you what you already provided to @racket[p
  are the generated @racket[client-id] and @racket[perm-id].
 
 }
+
+@section{Base Structs}
+
+@defmodule[interactive-brokers-api/base-structs]
+
+These structs are used for placing complex orders. You must @racket[require] the module to use them.
+
+@defstruct[combo-leg
+    ((contract-id integer?)
+     (ratio integer?)
+     (action (or/c 'buy 'sell 'sshort))
+     (exchange string?)
+     (open-close (or/c 'same 'open 'close #f))
+     (short-sale-slot (or/c 0 1 2))
+     (designated-location string?)
+     (exempt-code integer?))]{
+
+Use @racket[combo-leg] when you want to place a spread. This is commonly done for options and will work for many strategies. Note
+ that you can only provide @racket[contract-id], which you can retrieve from @racket[contract-details-req%].
+
+}
+
+@defstruct[condition
+((type (or/c 'price 'time 'margin
+             'execution 'volume 'percent-change))
+     (boolean-operator (or/c 'and 'or))
+     (comparator (or/c 'less-than 'greater-than))
+     (value (or/c rational? moment?))
+     (contract-id (or/c integer? #f))
+     (exchange (or/c string? #f))
+     (trigger-method (or/c 'default 'double-bid/ask 'last
+                           'double-last 'bid/ask 'last-of-bid/ask
+			   'mid-point #f)))]{
+
+Use @racket[condition] when you want your order to either take effect or be canceled only when certain conditions are met. Currently,
+ only @racket['price] and @racket['time] do anything useful within the client.
+
+}

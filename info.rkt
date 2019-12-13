@@ -7,3 +7,5 @@
 (define deps (list "base"
                    "binaryio"
                    "gregor-lib"))
+
+(define scribblings '(("interactive-brokers-api.scrbl" ())))

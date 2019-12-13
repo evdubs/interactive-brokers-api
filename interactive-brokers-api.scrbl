@@ -206,6 +206,9 @@ Request message to place an order. As you can see below, there are tons of diffe
 Any questions related to which fields do what should first consult the IBKR docs or IBKR themselves. The fields of this
  class are intended to exactly match those in the Java client library.
 
+Be sure to add a handler for @racket[next-valid-id-rsp] in @racket[ibkr-session%] so that you don't run into any errors
+ as a result of reusing an order ID. Order IDs are unique integers over the life of an account.
+
 @defconstructor[([order-id integer? 0]
                  [contract-id integer? 0]
 		 [symbol string? ""]
@@ -340,7 +343,257 @@ Any questions related to which fields do what should first consult the IBKR docs
 		 [soft-dollar-tier-value string? ""])]{
 
 Please note that the fields @racket[action], @racket[order-type], @racket[time-in-force], @racket[open-close], and @racket[origin]
- use defaults that are not the @racket[#f], @racket[0], or @racket[""] typical defaults.
+ use defaults that are not the @racket[#f], @racket[0], or @racket[""] typical defaults. Also note that you need to manage
+ @racket[order-id] on your own. If you do not supply an @racket[order-id], it will use 0 and you will likely get an error stating
+ the order ID has already been used.
 
 }}
 
+@section{Response messages}
+
+@defmodule[interactive-brokers-api/response-messages]
+
+@defstruct[contract-details-rsp
+    ((request-id integer?)
+     (symbol string?)
+     (security-type (or/c 'stk 'opt 'fut 'cash 'bond 'cfd
+                          'fop 'war 'iopt 'fwd 'bag 'ind
+			  'bill 'fund 'fixed 'slb 'news 'cmdty
+			  'bsk 'icu 'ics #f))
+     (expiry (or/c date? #f))
+     (strike (or/c rational? #f))
+     (right (or/c 'call 'put #f))
+     (exchange string?)
+     (currency string?)
+     (local-symbol string?)
+     (market-name string?)
+     (trading-class string?)
+     (contract-id integer?)
+     (minimum-tick-increment rational?)
+     (multiplier string?)
+     (order-types (listof string?))
+     (valid-exchanges (listof string?))
+     (price-magnifier integer?)
+     (underlying-contract-id integer?)
+     (long-name string?)
+     (primary-exchange string?)
+     (contract-month string?)
+     (industry string?)
+     (category string?)
+     (subcategory string?)
+     (time-zone-id string?)
+     (trading-hours (listof string?))
+     (liquid-hours (listof string?))
+     (ev-rule string?)
+     (ev-multiplier string?))]{
+
+When receiving contract details, it is often nice to use the @racket[contract-id] for subsequent new order or market data
+requests as these identifiers are unique.
+
+}
+
+@defstruct[err-rsp
+    ((id integer?)
+     (error-code integer?)
+     (error-msg string?))]{
+
+Generic error message for incorrectly formed requests. Consult the Java API docs for more information. 
+
+}
+
+@defstruct[execution-rsp
+((request-id integer?)
+     (order-id integer?)
+     (contract-id integer?)
+     (symbol string?)
+     (security-type (or/c 'stk 'opt 'fut 'cash 'bond 'cfd
+                          'fop 'war 'iopt 'fwd 'bag 'ind
+			  'bill 'fund 'fixed 'slb 'news 'cmdty
+			  'bsk 'icu 'ics #f))
+     (expiry (or/c date? #f))
+     (strike (or/c rational? #f))
+     (right (or/c 'call 'put #f))
+     (multiplier (or/c rational? #f))
+     (exchange string?)
+     (currency string?)
+     (local-symbol string?)
+     (trading-class string?)
+     (execution-id string?)
+     (timestamp moment?)
+     (account string?)
+     (executing-exchange string?)
+     (side string?)
+     (shares rational?)
+     (price rational?)
+     (perm-id integer?)
+     (client-id integer?)
+     (liquidation integer?)
+     (cumulative-quantity integer?)
+     (average-price rational?)
+     (order-reference string?)
+     (ev-rule string?)
+     (ev-multiplier (or/c rational? #f))
+     (model-code string?))]{
+
+It is recommended to periodically call @racket[executions-req%] to make sure you receive all of the executions that have occurred.
+
+}
+
+@defstruct[next-valid-id-rsp
+    ((order-id integer?))]{
+
+This response should be saved locally so that calls to @racket[place-order-req%] can include this saved value. It is not recommended
+ to just track order IDs independently of what the API is giving you. As a reminder, it is necessary to provide an order ID to
+ @racket[place-order-req%].
+
+}
+
+@defstruct[open-order-rsp
+    ((order-id integer?)
+     (contract-id integer?)
+     (symbol string?)
+     (security-type (or/c 'stk 'opt 'fut 'cash 'bond 'cfd
+                          'fop 'war 'iopt 'fwd 'bag 'ind
+			  'bill 'fund 'fixed 'slb 'news 'cmdty
+			  'bsk 'icu 'ics #f))
+     (expiry (or/c date? #f))
+     (strike (or/c rational? #f))
+     (right (or/c 'call 'put #f))
+     (multiplier (or/c rational? #f))
+     (exchange string?)
+     (currency string?)
+     (local-symbol string?)
+     (trading-class string?)
+     (action (or/c 'buy 'sell 'sshort))
+     (total-quantity rational?)
+     (order-type string?)
+     (limit-price (or/c rational? #f))
+     (aux-price (or/c rational? #f))
+     (time-in-force (or/c 'day 'gtc 'opg 'ioc 'gtd 'gtt
+                          'auc 'fok 'gtx 'dtc))
+     (oca-group string?)
+     (account string?)
+     (open-close (or/c 'open 'close #f))
+     (origin (or/c 'customer 'firm))
+     (order-ref string?)
+     (client-id integer?) ; new
+     (perm-id integer?) ; new
+     (outside-rth boolean?)
+     (hidden boolean?)
+     (discretionary-amount (or/c rational? #f))
+     (good-after-time (or/c moment? #f))
+     (advisor-group string?)
+     (advisor-method string?)
+     (advisor-percentage string?)
+     (advisor-profile string?)
+     (model-code string?)
+     (good-till-date (or/c date? #f))
+     (rule-80-a string?)
+     (percent-offset (or/c rational? #f))
+     (settling-firm string?)
+     (short-sale-slot (or/c 0 1 2))
+     (designated-location string?)
+     (exempt-code integer?)
+     (auction-strategy (or/c 'match 'improvement 'transparent #f))
+     (starting-price (or/c rational? #f))
+     (stock-ref-price (or/c rational? #f))
+     (delta (or/c rational? #f))
+     (stock-range-lower (or/c rational? #f))
+     (stock-range-upper (or/c rational? #f))
+     (display-size (or/c integer? #f))
+     (block-order boolean?)
+     (sweep-to-fill boolean?)
+     (all-or-none boolean?)
+     (minimum-quantity (or/c integer? #f))
+     (oca-type integer?)
+     (electronic-trade-only boolean?)
+     (firm-quote-only boolean?)
+     (nbbo-price-cap (or/c rational? #f))
+     (parent-id integer?)
+     (trigger-method integer?)
+     (volatility (or/c rational? #f))
+     (volatility-type (or/c integer? #f))
+     (delta-neutral-order-type string?)
+     (delta-neutral-aux-price (or/c rational? #f))
+     (delta-neutral-contract-id (or/c integer? #f))
+     (delta-neutral-settling-firm string?)
+     (delta-neutral-clearing-account string?)
+     (delta-neutral-clearing-intent string?)
+     (delta-neutral-open-close (or/c 'open 'close #f))
+     (delta-neutral-short-sale boolean?)
+     (delta-neutral-short-sale-slot (or/c integer? #f))
+     (delta-neutral-designated-location string?)
+     (continuous-update integer?)
+     (reference-price-type (or/c integer? #f))
+     (trailing-stop-price (or/c rational? #f))
+     (trailing-percent (or/c rational? #f))
+     (basis-points (or/c rational? #f))
+     (basis-points-type (or/c integer? #f))
+     (combo-legs (listof combo-leg?))
+     (order-combo-legs (listof rational?))
+     (smart-combo-routing-params hash?)
+     (scale-init-level-size (or/c integer? #f))
+     (scale-subs-level-size (or/c integer? #f))
+     (scale-price-increment (or/c rational? #f))
+     (scale-price-adjust-value (or/c rational? #f))
+     (scale-price-adjust-interval (or/c integer? #f))
+     (scale-profit-offset (or/c rational? #f))
+     (scale-auto-reset boolean?)
+     (scale-init-position (or/c integer? #f))
+     (scale-init-fill-quantity (or/c integer? #f))
+     (scale-random-percent boolean?)
+     (hedge-type string?)
+     (hedge-param string?)
+     (opt-out-smart-routing boolean?)
+     (clearing-account string?)
+     (clearing-intent (or/c 'ib 'away 'pta #f))
+     (not-held boolean?)
+     (delta-neutral-underlying-contract-id (or/c integer? #f))
+     (delta-neutral-underlying-delta (or/c rational? #f))
+     (delta-neutral-underlying-price (or/c rational? #f))
+     (algo-strategy string?)
+     (algo-strategy-params (listof string?))
+     (solicited boolean?)
+     (what-if boolean?)
+     (status string?)
+     (initial-margin (or/c rational? #f))
+     (maintenance-margin (or/c rational? #f))
+     (equity-with-loan (or/c rational? #f))
+     (commission (or/c rational? #f))
+     (minimum-commission (or/c rational? #f))
+     (maximum-commission (or/c rational? #f))
+     (commission-currency string?)
+     (warning-text string?)
+     (randomize-size boolean?)
+     (randomize-price boolean?)
+     (reference-contract-id (or/c integer? #f))
+     (is-pegged-change-amount-decrease boolean?)
+     (pegged-change-amount (or/c rational? #f))
+     (reference-change-amount (or/c rational? #f))
+     (reference-exchange-id string?)
+     (conditions (listof condition?))
+     (adjusted-order-type (or/c 'mkt 'lmt 'stp 'stp-limit
+                                'rel 'trail 'box-top 'fix-pegged
+				'lit 'lmt-+-mkt 'loc 'mit
+				'mkt-prt 'moc 'mtl 'passv-rel
+				'peg-bench 'peg-mid 'peg-mkt 'peg-prim
+                                'peg-stk 'rel-+-lmt 'rel-+-mkt 'snap-mid
+				'snap-mkt 'snap-prim 'stp-prt 'trail-limit
+				'trail-lit 'trail-lmt-+-mkt 'trail-mit
+				'trail-rel-+-mkt 'vol 'vwap 'quote 'ppv
+				'pdv 'pmv 'psv #f))
+     (trigger-price (or/c rational? #f))
+     (trail-stop-price (or/c rational? #f))
+     (limit-price-offset (or/c rational? #f))
+     (adjusted-stop-price (or/c rational? #f))
+     (adjusted-stop-limit-price (or/c rational? #f))
+     (adjusted-trailing-amount (or/c rational? #f))
+     (adjusted-trailing-unit integer?)
+     (soft-dollar-tier-name string?)
+     (soft-dollar-tier-value string?)
+     (soft-dollar-tier-display-name string?))]{
+
+This response is largely just telling you what you already provided to @racket[place-order-req%]. The fields of interest here
+ are the generated @racket[client-id] and @racket[perm-id].
+
+}

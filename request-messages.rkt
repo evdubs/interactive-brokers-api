@@ -9,6 +9,7 @@
 
 (provide contract-details-req%
          executions-req%
+         ibkr-msg%
          open-orders-req%
          place-order-req%
          req-msg<%>

@@ -39,7 +39,7 @@ The general code flow to establish a (default) connection and send a message is 
 (racketblock
  (define ibkr (new ibkr-session%))
  (send ibkr connect)
- ;; The connection should be established here
+ ;; The connection should be established after call to connect
  ;; Doing the below may be useful for testing
  (require interactive-brokers-api/request-messages)
  (send ibkr send-msg (new executions-req%))

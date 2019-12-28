@@ -35,13 +35,15 @@ The overall design of this library is to use objects to represent the connection
 
 The general code flow to establish a (default) connection and send a message is as follows:
 
-@racketblock[
-(define ibkr (new ibkr-session%))
-(send ibkr connect)
-; The connection should be established here. Doing the rest may be useful for testing
-(require interactive-brokers-api/request-messages)
-(send ibkr send-msg (new executions-req%))
-]
+@#reader scribble/comment-reader
+(racketblock
+ (define ibkr (new ibkr-session%))
+ (send ibkr connect)
+ ;; The connection should be established here
+ ;; Doing the below may be useful for testing
+ (require interactive-brokers-api/request-messages)
+ (send ibkr send-msg (new executions-req%))
+)
 
 @defclass[ibkr-session% object% ()]{
 

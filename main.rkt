@@ -30,6 +30,7 @@
 (define/contract ibkr-session%
   (class/c (init-field [client-id integer?]
                        [handle-accounts-rsp (-> (listof string?) any)]
+                       [handle-commission-report-rsp (-> commission-report-rsp? any)]
                        [handle-contract-details-rsp (-> contract-details-rsp? any)]
                        [handle-err-rsp (-> err-rsp? any)]
                        [handle-execution-rsp (-> execution-rsp? any)]
@@ -45,6 +46,7 @@
     (super-new)
     (init-field [client-id 0]
                 [handle-accounts-rsp (λ (a) void)]
+                [handle-commission-report-rsp (λ (cr) void)]
                 [handle-contract-details-rsp (λ (cd) void)]
                 [handle-err-rsp (λ (e) void)]
                 [handle-execution-rsp (λ (e) void)]
@@ -73,9 +75,10 @@
        (λ () (do ()
                  (#f)
                (let* ([str (read-sized-str ibkr-in)]
+                      [_ (cond [write-messages (display "Received: ") (writeln (string-split (bytes->string/utf-8 str) "\0"))])]
                       [msg (parse-msg str)])
-                 (cond [write-messages (display "Received: ") (writeln (string-split (bytes->string/utf-8 str) "\0"))])
                  (cond
+                   [(commission-report-rsp? msg) (handle-commission-report-rsp msg)]
                    [(contract-details-rsp? msg) (handle-contract-details-rsp msg)]
                    [(moment? msg) (handle-server-time-rsp msg)]
                    [(err-rsp? msg) (handle-err-rsp msg)]
@@ -93,7 +96,7 @@
 
       ; EClient.sendV100APIHeader
       (display "API\u0000" ibkr-out)
-      (write-sized-str "v100..106" ibkr-out)
+      (write-sized-str "v100..151" ibkr-out)
       (channel-put req-rsp-channel #f)
 
       ; EClient.startAPI

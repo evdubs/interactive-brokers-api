@@ -9,6 +9,13 @@
 
 (provide
  (contract-out
+  [struct commission-report-rsp
+    ((execution-id string?)
+     (commission rational?)
+     (currency string?)
+     (realized-pnl (or/c rational? #f))
+     (yield (or/c rational? #f))
+     (yield-redemption-date (or/c integer? #f)))]
   [struct contract-details-rsp
     ((request-id integer?)
      (symbol string?)
@@ -24,6 +31,7 @@
      (trading-class string?)
      (contract-id integer?)
      (minimum-tick-increment rational?)
+     (md-size-multiplier integer?)
      (multiplier string?)
      (order-types (listof string?))
      (valid-exchanges (listof string?))
@@ -39,7 +47,14 @@
      (trading-hours (listof string?))
      (liquid-hours (listof string?))
      (ev-rule string?)
-     (ev-multiplier string?))]
+     (ev-multiplier string?)
+     (security-ids hash?)
+     (agg-group integer?)
+     (underlying-symbol string?)
+     (underlying-security-type (or/c 'stk 'opt 'fut 'cash 'bond 'cfd 'fop 'war 'iopt 'fwd 'bag
+                                     'ind 'bill 'fund 'fixed 'slb 'news 'cmdty 'bsk 'icu 'ics #f))
+     (market-rule-ids (listof string?))
+     (real-expiry (or/c date? #f)))]
   [struct err-rsp
     ((id integer?)
      (error-code integer?)
@@ -155,6 +170,7 @@
      (trailing-percent (or/c rational? #f))
      (basis-points (or/c rational? #f))
      (basis-points-type (or/c integer? #f))
+     (combo-legs-description string?)
      (combo-legs (listof combo-leg?))
      (order-combo-legs (listof rational?))
      (smart-combo-routing-params hash?)
@@ -182,9 +198,15 @@
      (solicited boolean?)
      (what-if boolean?)
      (status string?)
-     (initial-margin (or/c rational? #f))
-     (maintenance-margin (or/c rational? #f))
-     (equity-with-loan (or/c rational? #f))
+     (initial-margin-before (or/c rational? #f))
+     (maintenance-margin-before (or/c rational? #f))
+     (equity-with-loan-before (or/c rational? #f))
+     (initial-margin-change (or/c rational? #f))
+     (maintenance-margin-change (or/c rational? #f))
+     (equity-with-loan-change (or/c rational? #f))
+     (initial-margin-after (or/c rational? #f))
+     (maintenance-margin-after (or/c rational? #f))
+     (equity-with-loan-after (or/c rational? #f))
      (commission (or/c rational? #f))
      (minimum-commission (or/c rational? #f))
      (maximum-commission (or/c rational? #f))
@@ -212,8 +234,22 @@
      (adjusted-trailing-unit integer?)
      (soft-dollar-tier-name string?)
      (soft-dollar-tier-value string?)
-     (soft-dollar-tier-display-name string?))])
+     (soft-dollar-tier-display-name string?)
+     (cash-quantity rational?)
+     (dont-use-auto-price-for-hedge boolean?)
+     (is-oms-container boolean?)
+     (discretionary-up-to-limit-price boolean?)
+     (use-price-management-algo boolean?))])
  parse-msg)
+
+(struct commission-report-rsp
+  (execution-id
+   commission
+   currency
+   realized-pnl
+   yield
+   yield-redemption-date)
+  #:transparent)
 
 (struct contract-details-rsp
   (request-id
@@ -229,6 +265,7 @@
    trading-class
    contract-id
    minimum-tick-increment
+   md-size-multiplier
    multiplier
    order-types
    valid-exchanges
@@ -245,8 +282,12 @@
    liquid-hours
    ev-rule
    ev-multiplier
-   ; need some handling for sec-id-list
-   )
+   security-ids
+   agg-group
+   underlying-symbol
+   underlying-security-type
+   market-rule-ids
+   real-expiry)
   #:transparent)
 
 (struct err-rsp
@@ -368,6 +409,7 @@
    trailing-percent
    basis-points
    basis-points-type
+   combo-legs-description
    combo-legs
    order-combo-legs
    smart-combo-routing-params
@@ -395,9 +437,15 @@
    solicited
    what-if
    status
-   initial-margin
-   maintenance-margin
-   equity-with-loan
+   initial-margin-before
+   maintenance-margin-before
+   equity-with-loan-before
+   initial-margin-change
+   maintenance-margin-change
+   equity-with-loan-change
+   initial-margin-after
+   maintenance-margin-after
+   equity-with-loan-after
    commission
    minimum-commission
    maximum-commission
@@ -421,7 +469,12 @@
    adjusted-trailing-unit
    soft-dollar-tier-name
    soft-dollar-tier-value
-   soft-dollar-tier-display-name)
+   soft-dollar-tier-display-name
+   cash-quantity
+   dont-use-auto-price-for-hedge
+   is-oms-container
+   discretionary-up-to-limit-price
+   use-price-management-algo)
   #:transparent)
 
 ; ensure string->number conversions try to exactly represent the provided decimal
@@ -429,7 +482,8 @@
 
 ; convert a byte string message received over the wire to the appropriate structure
 (define/contract (parse-msg str)
-  (-> bytes? (or/c contract-details-rsp?
+  (-> bytes? (or/c commission-report-rsp?
+                   contract-details-rsp?
                    moment?
                    err-rsp?
                    execution-rsp?
@@ -441,7 +495,7 @@
     ; ignoring error responses with version < 2
     [(list "4" "2" id error-code message) (err-rsp (string->number id) (string->number error-code) message)]
     ; open order
-    [(list-rest "5" version details)
+    [(list-rest "5" details)
      (let* ([combo-legs-index 78]
             [combo-legs-size (string->number (list-ref details combo-legs-index))]
             [order-combo-legs-index (+ 1 combo-legs-index (* 8 combo-legs-size))]
@@ -464,8 +518,8 @@
                                   (string->number (list-ref details (+ 1 algo-strategy-index))))]
             [solicited-index (+ 1 algo-strategy-index (if (< 0 algo-params-size) 1 0) (* 2 algo-params-size))]
             [conditions-index (if (equal? "PEG BENCH" (list-ref details 14))
-                                  (+ 18 solicited-index)
-                                  (+ 13 solicited-index))]
+                                  (+ 24 solicited-index)
+                                  (+ 19 solicited-index))]
             [conditions-size (string->number (list-ref details conditions-index))]
             [adjusted-order-type-index (+ 1 conditions-index (if (< 0 conditions-size) 2 0) conditions-size)])
        (open-order-rsp
@@ -566,6 +620,7 @@
         (string->number (list-ref details 74)) ; trailing-percent
         (string->number (list-ref details 75)) ; basis-points
         (string->number (list-ref details 76)) ; basis-points-type
+        (list-ref details 77) ; combo-legs-description
         (map (λ (i) (combo-leg
                      (string->number (list-ref details (+ 1 (* i 8) combo-legs-index))) ; contract-id
                      (string->number (list-ref details (+ 2 (* i 8) combo-legs-index))) ; ratio
@@ -584,7 +639,7 @@
         (map (λ (i) (string->number (list-ref details (+ 1 (* i 1) order-combo-legs-index))))
              (range order-combo-legs-size)) ; order-combo-legs
         (apply hash (take (drop details (+ 1 smart-combo-routing-params-index))
-                          (* 2 smart-combo-routing-params-size)))
+                          (* 2 smart-combo-routing-params-size))) ; smart-combo-routing-params
         (string->number (list-ref details scale-init-level-size-index)) ; scale-init-level-size
         (string->number (list-ref details (+ 1 scale-init-level-size-index))) ; scale-subs-level-size
         (string->number (list-ref details (+ 2 scale-init-level-size-index))) ; scale-price-increment
@@ -624,28 +679,40 @@
         ; usually, these are later removed, but in a few cases like the ones below, they are
         ; not removed and need to be explicitly handled as they are sent over the wire.
         (if (equal? "1.7976931348623157E308" (list-ref details (+ 3 solicited-index)))
-            #f (string->number (list-ref details (+ 3 solicited-index)))) ; initial-margin
+            #f (string->number (list-ref details (+ 3 solicited-index)))) ; initial-margin-before
         (if (equal? "1.7976931348623157E308" (list-ref details (+ 4 solicited-index)))
-            #f (string->number (list-ref details (+ 4 solicited-index)))) ; maintenance-margin
+            #f (string->number (list-ref details (+ 4 solicited-index)))) ; maintenance-margin-before
         (if (equal? "1.7976931348623157E308" (list-ref details (+ 5 solicited-index)))
-            #f (string->number (list-ref details (+ 5 solicited-index)))) ; equity-with-loan
-        (string->number (list-ref details (+ 6 solicited-index))) ; commission
-        (string->number (list-ref details (+ 7 solicited-index))) ; minimum-commission
-        (string->number (list-ref details (+ 8 solicited-index))) ; maximum-commission
-        (list-ref details (+ 9 solicited-index)) ; commission-currency
-        (list-ref details (+ 10 solicited-index)) ; warning-text
-        (if (equal? "1" (list-ref details (+ 11 solicited-index))) #t #f) ; randomize-size
-        (if (equal? "1" (list-ref details (+ 12 solicited-index))) #t #f) ; randomize-price
+            #f (string->number (list-ref details (+ 5 solicited-index)))) ; equity-with-loan-before
+        (if (equal? "1.7976931348623157E308" (list-ref details (+ 6 solicited-index)))
+            #f (string->number (list-ref details (+ 6 solicited-index)))) ; initial-margin-change
+        (if (equal? "1.7976931348623157E308" (list-ref details (+ 7 solicited-index)))
+            #f (string->number (list-ref details (+ 7 solicited-index)))) ; maintenance-margin-change
+        (if (equal? "1.7976931348623157E308" (list-ref details (+ 8 solicited-index)))
+            #f (string->number (list-ref details (+ 8 solicited-index)))) ; equity-with-loan-change
+        (if (equal? "1.7976931348623157E308" (list-ref details (+ 9 solicited-index)))
+            #f (string->number (list-ref details (+ 9 solicited-index)))) ; initial-margin-after
+        (if (equal? "1.7976931348623157E308" (list-ref details (+ 10 solicited-index)))
+            #f (string->number (list-ref details (+ 10 solicited-index)))) ; maintenance-margin-after
+        (if (equal? "1.7976931348623157E308" (list-ref details (+ 11 solicited-index)))
+            #f (string->number (list-ref details (+ 11 solicited-index)))) ; equity-with-loan-after
+        (string->number (list-ref details (+ 12 solicited-index))) ; commission
+        (string->number (list-ref details (+ 13 solicited-index))) ; minimum-commission
+        (string->number (list-ref details (+ 14 solicited-index))) ; maximum-commission
+        (list-ref details (+ 15 solicited-index)) ; commission-currency
+        (list-ref details (+ 16 solicited-index)) ; warning-text
+        (if (equal? "1" (list-ref details (+ 17 solicited-index))) #t #f) ; randomize-size
+        (if (equal? "1" (list-ref details (+ 18 solicited-index))) #t #f) ; randomize-price
         (if (equal? "PEG BENCH" (list-ref details 14))
-            (string->number (list-ref details (+ 13 solicited-index))) #f) ; reference-contract-id
+            (string->number (list-ref details (+ 19 solicited-index))) #f) ; reference-contract-id
         (if (equal? "PEG BENCH" (list-ref details 14))
-            (if (equal? "1" (list-ref details (+ 14 solicited-index))) #t #f) #f) ; is-pegged-change-amount-decrease
+            (if (equal? "1" (list-ref details (+ 20 solicited-index))) #t #f) #f) ; is-pegged-change-amount-decrease
         (if (equal? "PEG BENCH" (list-ref details 14))
-            (string->number (list-ref details (+ 15 solicited-index))) #f) ; pegged-change-amount
+            (string->number (list-ref details (+ 21 solicited-index))) #f) ; pegged-change-amount
         (if (equal? "PEG BENCH" (list-ref details 14))
-            (string->number (list-ref details (+ 16 solicited-index))) #f) ; reference-change-amount
+            (string->number (list-ref details (+ 22 solicited-index))) #f) ; reference-change-amount
         (if (equal? "PEG BENCH" (list-ref details 14))
-            (list-ref details (+ 17 solicited-index)) "") ; reference-exchange-id
+            (list-ref details (+ 23 solicited-index)) "") ; reference-exchange-id
         (map (λ (i)
                (match (list-ref details (+ 1 conditions-index))
                  ["1" (condition
@@ -689,85 +756,116 @@
         (list-ref details (+ 8 adjusted-order-type-index)) ; soft-dollar-tier-name
         (list-ref details (+ 9 adjusted-order-type-index)) ; soft-dollar-tier-val
         (list-ref details (+ 10 adjusted-order-type-index)) ; soft-dollar-tier-display-name
+        (string->number (list-ref details (+ 11 adjusted-order-type-index))) ; cash-quantity
+        (if (equal? "1" (list-ref details (+ 12 adjusted-order-type-index))) #t #f) ; dont-use-auto-price-for-hedge
+        (if (equal? "1" (list-ref details (+ 13 adjusted-order-type-index))) #t #f) ; is-oms-container
+        (if (equal? "1" (list-ref details (+ 14 adjusted-order-type-index))) #t #f) ; discretionary-up-to-limit-price
+        (if (equal? "1" (list-ref details (+ 15 adjusted-order-type-index))) #t #f) ; use-price-management-algo
         ))]
     ; next valid id
     [(list "9" version order-id) (next-valid-id-rsp (string->number order-id))]
     ; contract details
-    [(list-rest "10" version details) (contract-details-rsp
-                                       (string->number (list-ref details 0)) ; request-id
-                                       (list-ref details 1) ; symbol
-                                       (string->symbol (string-downcase (list-ref details 2))) ; security-type
-                                       (if (equal? "" (list-ref details 3))
-                                           #f (parse-date (list-ref details 3) "yyyyMMdd")) ; expiry
-                                       (string->number (list-ref details 4)) ; strike
-                                       (match (list-ref details 5)
-                                         ["C" 'call]
-                                         ["P" 'put]
-                                         [_ #f]) ; right
-                                       (list-ref details 6) ; exchange
-                                       (list-ref details 7) ; currency
-                                       (list-ref details 8) ; local-symbol
-                                       (list-ref details 9) ; market-name
-                                       (list-ref details 10) ; trading-class
-                                       (string->number (list-ref details 11)) ; contract-id
-                                       (string->number (list-ref details 12)) ; minimum-tick-increment
-                                       (list-ref details 13) ; multiplier
-                                       (string-split (list-ref details 14) ",") ; order-types
-                                       (string-split (list-ref details 15) ",") ; valid-exchanges
-                                       (string->number (list-ref details 16)) ; price-magnifier
-                                       (string->number (list-ref details 17)) ; underlying-contract-id
-                                       (list-ref details 18) ; long-name
-                                       (list-ref details 19) ; primary-exchange
-                                       (list-ref details 20) ; contract-month
-                                       (list-ref details 21) ; industry
-                                       (list-ref details 22) ; category
-                                       (list-ref details 23) ; subcategory
-                                       (list-ref details 24) ; time-zone-id
-                                       (string-split (list-ref details 25) ";") ; trading-hours
-                                       (string-split (list-ref details 26) ";") ; liquid-hours
-                                       (list-ref details 27) ; ev-rule
-                                       (list-ref details 28) ; ev-multiplier
-                                       )]
+    [(list-rest "10" version details)
+     (let* ([security-ids-index 30]
+            [security-ids-size (string->number (list-ref details security-ids-index))]
+            [agg-group-index (+ 1 security-ids-index (* 2 security-ids-size))])
+       (contract-details-rsp
+        (string->number (list-ref details 0)) ; request-id
+        (list-ref details 1) ; symbol
+        (string->symbol (string-downcase (list-ref details 2))) ; security-type
+        (if (equal? "" (list-ref details 3))
+            #f (parse-date (second (regexp-match #px"([0-9]{8})( [0-9]{2}:[0-9]{2} [A-Z]{3})?"
+                                                 (list-ref details 3))) "yyyyMMdd")) ; expiry
+        (string->number (list-ref details 4)) ; strike
+        (match (list-ref details 5)
+          ["C" 'call]
+          ["P" 'put]
+          [_ #f]) ; right
+        (list-ref details 6) ; exchange
+        (list-ref details 7) ; currency
+        (list-ref details 8) ; local-symbol
+        (list-ref details 9) ; market-name
+        (list-ref details 10) ; trading-class
+        (string->number (list-ref details 11)) ; contract-id
+        (string->number (list-ref details 12)) ; minimum-tick-increment
+        (string->number (list-ref details 13)) ; md-size-multiplier
+        (list-ref details 14) ; multiplier
+        (string-split (list-ref details 15) ",") ; order-types
+        (string-split (list-ref details 16) ",") ; valid-exchanges
+        (string->number (list-ref details 17)) ; price-magnifier
+        (string->number (list-ref details 18)) ; underlying-contract-id
+        (list-ref details 19) ; long-name
+        (list-ref details 20) ; primary-exchange
+        (list-ref details 21) ; contract-month
+        (list-ref details 22) ; industry
+        (list-ref details 23) ; category
+        (list-ref details 24) ; subcategory
+        (list-ref details 25) ; time-zone-id
+        (string-split (list-ref details 26) ";") ; trading-hours
+        (string-split (list-ref details 27) ";") ; liquid-hours
+        (list-ref details 28) ; ev-rule
+        (list-ref details 29) ; ev-multiplier
+        (apply hash (take (drop details (+ 1 security-ids-index))
+                          (* 2 security-ids-size))) ; security-ids
+        (string->number (list-ref details agg-group-index)) ; agg-group
+        (list-ref details (+ 1 agg-group-index)) ; underlying-symbol
+        (string->symbol (string-downcase (list-ref details (+ 2 agg-group-index)))) ; underlying-security-type
+        (string-split (list-ref details (+ 3 agg-group-index)) ",") ; market-rule-ids
+        (if (equal? "" (list-ref details (+ 4 agg-group-index)))
+            #f (parse-date (list-ref details (+ 4 agg-group-index)) "yyyyMMdd")) ; real-expiry
+        ))]
     ; execution
-    [(list-rest "11" version details) (execution-rsp
-                                       (string->number (list-ref details 0)) ; request-id
-                                       (string->number (list-ref details 1)) ; order-id
-                                       (string->number (list-ref details 2)) ; contract-id
-                                       (list-ref details 3) ; symbol
-                                       (string->symbol (string-downcase (list-ref details 4))) ; security-type
-                                       (if (equal? "" (list-ref details 5))
-                                           #f (parse-date (list-ref details 5) "yyyyMMdd")) ; expiry
-                                       (string->number (list-ref details 6)) ; strike
-                                       (match (list-ref details 7)
-                                         ["C" 'call]
-                                         ["P" 'put]
-                                         [_ #f]) ; right
-                                       (string->number (list-ref details 8)) ; multiplier
-                                       (list-ref details 9) ; exchange
-                                       (list-ref details 10) ; currency
-                                       (list-ref details 11) ; local-symbol
-                                       (list-ref details 12) ; trading-class
-                                       (list-ref details 13) ; execution-id
-                                       ; take out the time-zone-name as srfi/19 does not handle this. assume local time zone
-                                       (parse-moment (second (regexp-match #px"([0-9]{8} +[0-9]{2}:[0-9]{2}:[0-9]{2})( [A-Z]+)?"
-                                                                           (list-ref details 14))) "yyyyMMdd  HH:mm:ss") ; timestamp
-                                       (list-ref details 15) ; account
-                                       (list-ref details 16) ; executing-exchange
-                                       (list-ref details 17) ; side
-                                       (string->number (list-ref details 18)) ; shares
-                                       (string->number (list-ref details 19)) ; price
-                                       (string->number (list-ref details 20)) ; perm-id
-                                       (string->number (list-ref details 21)) ; client-id
-                                       (string->number (list-ref details 22)) ; liquidation
-                                       (string->number (list-ref details 23)) ; cumulative-quantity
-                                       (string->number (list-ref details 24)) ; average-price
-                                       (list-ref details 25) ; order-reference
-                                       (list-ref details 26) ; ev-rule
-                                       (string->number (list-ref details 27)) ; ev-multiplier
-                                       (list-ref details 28) ; model-code
-                                       )]
+    [(list-rest "11" details) (execution-rsp
+                               (string->number (list-ref details 0)) ; request-id
+                               (string->number (list-ref details 1)) ; order-id
+                               (string->number (list-ref details 2)) ; contract-id
+                               (list-ref details 3) ; symbol
+                               (string->symbol (string-downcase (list-ref details 4))) ; security-type
+                               (if (equal? "" (list-ref details 5))
+                                   #f (parse-date (list-ref details 5) "yyyyMMdd")) ; expiry
+                               (string->number (list-ref details 6)) ; strike
+                               (match (list-ref details 7)
+                                 ["C" 'call]
+                                 ["P" 'put]
+                                 [_ #f]) ; right
+                               (string->number (list-ref details 8)) ; multiplier
+                               (list-ref details 9) ; exchange
+                               (list-ref details 10) ; currency
+                               (list-ref details 11) ; local-symbol
+                               (list-ref details 12) ; trading-class
+                               (list-ref details 13) ; execution-id
+                               ; take out the time-zone-name as srfi/19 does not handle this. assume local time zone
+                               (parse-moment (second (regexp-match #px"([0-9]{8} +[0-9]{2}:[0-9]{2}:[0-9]{2})( [A-Z]+)?"
+                                                                   (list-ref details 14))) "yyyyMMdd  HH:mm:ss") ; timestamp
+                               (list-ref details 15) ; account
+                               (list-ref details 16) ; executing-exchange
+                               (list-ref details 17) ; side
+                               (string->number (list-ref details 18)) ; shares
+                               (string->number (list-ref details 19)) ; price
+                               (string->number (list-ref details 20)) ; perm-id
+                               (string->number (list-ref details 21)) ; client-id
+                               (string->number (list-ref details 22)) ; liquidation
+                               (string->number (list-ref details 23)) ; cumulative-quantity
+                               (string->number (list-ref details 24)) ; average-price
+                               (list-ref details 25) ; order-reference
+                               (list-ref details 26) ; ev-rule
+                               (string->number (list-ref details 27)) ; ev-multiplier
+                               (list-ref details 28) ; model-code
+                               )]
     ; managed accounts
     [(list-rest "15" num-accts accts) accts]
+    ; commission report
+    [(list-rest "59" version details) (commission-report-rsp
+                                       (list-ref details 0) ; execution-id
+                                       (string->number (list-ref details 1)) ; commission
+                                       (list-ref details 2) ; currency
+                                       (if (equal? "1.7976931348623157E308" (list-ref details 3))
+                                           #f (string->number (list-ref details 3))) ; realized-pnl
+                                       (if (equal? "1.7976931348623157E308" (list-ref details 4))
+                                           #f (string->number (list-ref details 4))) ; yield
+                                       (if (equal? "" (list-ref details 5))
+                                           #f (string->number (list-ref details 5))) ; yield-redemption-date
+                                       )]
     ; current timestamp
     [(list "106" date-str) (parse-moment (second (regexp-match #px"([0-9]{8} [0-9]{2}:[0-9]{2}:[0-9]{2}) [A-Z]+"
                                                                date-str)) "yyyyMMdd HH:mm:ss")]

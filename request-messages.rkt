@@ -267,7 +267,16 @@
                        [adjusted-trailing-unit integer?]
                        [ext-operator string?]
                        [soft-dollar-tier-name string?]
-                       [soft-dollar-tier-value string?]))
+                       [soft-dollar-tier-value string?]
+                       [cash-quantity rational?]
+                       [mifid2-decision-maker string?]
+                       [mifid2-decision-algo string?]
+                       [mifid2-execution-trader string?]
+                       [mifid2-execution-algo string?]
+                       [dont-use-auto-price-for-hedge boolean?]
+                       [is-oms-container boolean?]
+                       [discretionary-up-to-limit-price boolean?]
+                       [use-price-management-algo boolean?]))
   (class* ibkr-msg%
     (req-msg<%>)
     (super-new [msg-id 3]
@@ -396,11 +405,20 @@
                 [adjusted-trailing-unit 0]
                 [ext-operator ""]
                 [soft-dollar-tier-name ""]
-                [soft-dollar-tier-value ""])
+                [soft-dollar-tier-value ""]
+                [cash-quantity 0]
+                [mifid2-decision-maker ""]
+                [mifid2-decision-algo ""]
+                [mifid2-execution-trader ""]
+                [mifid2-execution-algo ""]
+                [dont-use-auto-price-for-hedge #f]
+                [is-oms-container #f]
+                [discretionary-up-to-limit-price #f]
+                [use-price-management-algo #f])
     (define/public (->string)
       (string-append
        (number->string msg-id) "\0"
-       (number->string version) "\0"
+       ; (number->string version) "\0"
        (number->string order-id) "\0"
        (number->string contract-id) "\0"
        symbol "\0"
@@ -610,7 +628,16 @@
        (number->string adjusted-trailing-unit) "\0"
        ext-operator "\0"
        soft-dollar-tier-name "\0"
-       soft-dollar-tier-value "\0"))))
+       soft-dollar-tier-value "\0"
+       (real->decimal-string cash-quantity 2) "\0"
+       mifid2-decision-maker "\0"
+       mifid2-decision-algo "\0"
+       mifid2-execution-trader "\0"
+       mifid2-execution-algo "\0"
+       (if dont-use-auto-price-for-hedge "1" "0") "\0"
+       (if is-oms-container "1" "0") "\0"
+       (if discretionary-up-to-limit-price "1" "0") "\0"
+       (if use-price-management-algo "1" "0") "\0"))))
 
 (define/contract start-api-req%
   (class/c (inherit-field [msg-id integer?]

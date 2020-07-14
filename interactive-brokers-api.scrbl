@@ -5,7 +5,7 @@
 
 Racket implementation for the @link["https://interactivebrokers.github.io/tws-api/"]{Interactive Brokers' Trader Workstation Client API}.
 
-This implementation is based on the Java TWS API version 972.18. The protocol used to communicate between the client and server establishes
+This implementation is based on the Java TWS API version 976.01. The protocol used to communicate between the client and server establishes
  the client version and should allow the server to continue consuming and producing messages compatible with our version even when the server
  is updated. However, when there are desirable new features added, this library may be updated and its version number updated to reflect
  the version of the TWS API the new code uses.
@@ -53,12 +53,13 @@ This object is responsible for establishing a connection, sending messages, and 
 
 @defconstructor[([client-id integer? 0]
                  [handle-accounts-rsp (-> (listof string?) any) (λ (a) void)]
-                 [handle-contract-details-rsp (-> contract-details-rsp? any) (λ (a) void)]
-                 [handle-err-rsp (-> err-rsp? any) (λ (a) void)]
-                 [handle-execution-rsp (-> execution-rsp? any) (λ (a) void)]
-                 [handle-next-valid-id-rsp (-> next-valid-id-rsp? any) (λ (a) void)]
-                 [handle-open-order-rsp (-> open-order-rsp? any) (λ (a) void)]
-                 [handle-server-time-rsp (-> moment? any) (λ (a) void)]
+		 [handle-commission-report-rsp (-> commission-report-rsp? any) (λ (cr) void)]
+                 [handle-contract-details-rsp (-> contract-details-rsp? any) (λ (cd) void)]
+                 [handle-err-rsp (-> err-rsp? any) (λ (e) void)]
+                 [handle-execution-rsp (-> execution-rsp? any) (λ (e) void)]
+                 [handle-next-valid-id-rsp (-> next-valid-id-rsp? any) (λ (nvi) void)]
+                 [handle-open-order-rsp (-> open-order-rsp? any) (λ (oo) void)]
+                 [handle-server-time-rsp (-> moment? any) (λ (st) void)]
                  [hostname string? "127.0.0.1"]
                  [port-no port-number? 7497]
                  [write-messages boolean? #f])]{
@@ -159,7 +160,8 @@ will retrieve all actively trading AAPL options with a strike price of 200.0. By
 Request message to receive @racket[execution-rsp]s. As an example,
 
 @racketblock[
-(send ibkr send-msg (new executions-req%))
+(send ibkr send-msg (new executions-req%
+                         [timestamp (-period (now/moment) (days 7))]))
 ]
 
 will retrieve all executions within a week.
@@ -343,7 +345,16 @@ Be sure to add a handler for @racket[next-valid-id-rsp] in @racket[ibkr-session%
 		 [adjusted-trailing-unit integer? 0]
 		 [ext-operator string? ""]
 		 [soft-dollar-tier-name string? ""]
-		 [soft-dollar-tier-value string? ""])]{
+		 [soft-dollar-tier-value string? ""]
+		 [cash-quantity rational? 0]
+                 [mifid2-decision-maker string? ""]
+                 [mifid2-decision-algo string? ""]
+                 [mifid2-execution-trader string? ""]
+                 [mifid2-execution-algo string? ""]
+                 [dont-use-auto-price-for-hedge boolean? #f]
+                 [is-oms-container boolean? #f]
+                 [discretionary-up-to-limit-price boolean? #f]
+                 [use-price-management-algo boolean? #f])]{
 
 Please note that the fields @racket[action], @racket[order-type], @racket[time-in-force], @racket[open-close], and @racket[origin]
  use defaults that are not the @racket[#f], @racket[0], or @racket[""] typical defaults. Also note that you need to manage
@@ -355,6 +366,18 @@ Please note that the fields @racket[action], @racket[order-type], @racket[time-i
 @section{Response messages}
 
 @defmodule[interactive-brokers-api/response-messages]
+
+@defstruct[commission-report-rsp
+    ((execution-id string?)
+     (commission rational?)
+     (currency string?)
+     (realized-pnl (or/c rational? #f))
+     (yield (or/c rational? #f))
+     (yield-redemption-date (or/c integer? #f)))]{
+
+Commission reports are sent along with executions when calls are made to @racket[executions-req%].
+
+}
 
 @defstruct[contract-details-rsp
     ((request-id integer?)
@@ -373,6 +396,7 @@ Please note that the fields @racket[action], @racket[order-type], @racket[time-i
      (trading-class string?)
      (contract-id integer?)
      (minimum-tick-increment rational?)
+     (md-size-multiplier integer?)
      (multiplier string?)
      (order-types (listof string?))
      (valid-exchanges (listof string?))
@@ -388,7 +412,14 @@ Please note that the fields @racket[action], @racket[order-type], @racket[time-i
      (trading-hours (listof string?))
      (liquid-hours (listof string?))
      (ev-rule string?)
-     (ev-multiplier string?))]{
+     (ev-multiplier string?)
+     (security-ids hash?)
+     (agg-group integer?)
+     (underlying-symbol string?)
+     (underlying-security-type (or/c 'stk 'opt 'fut 'cash 'bond 'cfd 'fop 'war 'iopt 'fwd 'bag
+                                     'ind 'bill 'fund 'fixed 'slb 'news 'cmdty 'bsk 'icu 'ics #f))
+     (market-rule-ids (listof string?))
+     (real-expiry (or/c date? #f)))]{
 
 When receiving contract details, it is often nice to use the @racket[contract-id] for subsequent new order or market data
 requests as these identifiers are unique.
@@ -532,6 +563,7 @@ This response should be saved locally so that calls to @racket[place-order-req%]
      (trailing-percent (or/c rational? #f))
      (basis-points (or/c rational? #f))
      (basis-points-type (or/c integer? #f))
+     (combo-legs-description string?)
      (combo-legs (listof combo-leg?))
      (order-combo-legs (listof rational?))
      (smart-combo-routing-params hash?)
@@ -559,9 +591,15 @@ This response should be saved locally so that calls to @racket[place-order-req%]
      (solicited boolean?)
      (what-if boolean?)
      (status string?)
-     (initial-margin (or/c rational? #f))
-     (maintenance-margin (or/c rational? #f))
-     (equity-with-loan (or/c rational? #f))
+     (initial-margin-before (or/c rational? #f))
+     (maintenance-margin-before (or/c rational? #f))
+     (equity-with-loan-before (or/c rational? #f))
+     (initial-margin-change (or/c rational? #f))
+     (maintenance-margin-change (or/c rational? #f))
+     (equity-with-loan-change (or/c rational? #f))
+     (initial-margin-after (or/c rational? #f))
+     (maintenance-margin-after (or/c rational? #f))
+     (equity-with-loan-after (or/c rational? #f))
      (commission (or/c rational? #f))
      (minimum-commission (or/c rational? #f))
      (maximum-commission (or/c rational? #f))
@@ -594,7 +632,12 @@ This response should be saved locally so that calls to @racket[place-order-req%]
      (adjusted-trailing-unit integer?)
      (soft-dollar-tier-name string?)
      (soft-dollar-tier-value string?)
-     (soft-dollar-tier-display-name string?))]{
+     (soft-dollar-tier-display-name string?)
+     (cash-quantity rational?)
+     (dont-use-auto-price-for-hedge boolean?)
+     (is-oms-container boolean?)
+     (discretionary-up-to-limit-price boolean?)
+     (use-price-management-algo boolean?))]{
 
 This response is largely just telling you what you already provided to @racket[place-order-req%]. The fields of interest here
  are the generated @racket[client-id] and @racket[perm-id].

@@ -52,17 +52,19 @@ This object is responsible for establishing a connection, sending messages, and 
  seen that attempting to send multiple requests without waiting for a response forced a disconnect.
 
 @defconstructor[([client-id integer? 0]
-                 [handle-accounts-rsp (-> (listof string?) any) (λ (a) void)]
+		 [handle-accounts-rsp (-> (listof string?) any) (λ (a) void)]
 		 [handle-commission-report-rsp (-> commission-report-rsp? any) (λ (cr) void)]
-                 [handle-contract-details-rsp (-> contract-details-rsp? any) (λ (cd) void)]
-                 [handle-err-rsp (-> err-rsp? any) (λ (e) void)]
-                 [handle-execution-rsp (-> execution-rsp? any) (λ (e) void)]
-                 [handle-next-valid-id-rsp (-> next-valid-id-rsp? any) (λ (nvi) void)]
-                 [handle-open-order-rsp (-> open-order-rsp? any) (λ (oo) void)]
-                 [handle-server-time-rsp (-> moment? any) (λ (st) void)]
-                 [hostname string? "127.0.0.1"]
-                 [port-no port-number? 7497]
-                 [write-messages boolean? #f])]{
+		 [handle-contract-details-rsp (-> contract-details-rsp? any) (λ (cd) void)]
+		 [handle-err-rsp (-> err-rsp? any) (λ (e) void)]
+		 [handle-execution-rsp (-> execution-rsp? any) (λ (e) void)]
+		 [handle-historical-data-rsp (-> historical-data-rsp? any) (λ (hd) void)]
+		 [handle-market-data-rsp (-> market-data-rsp? any) (λ (md) void)]
+		 [handle-next-valid-id-rsp (-> next-valid-id-rsp? any) (λ (nvi) void)]
+		 [handle-open-order-rsp (-> open-order-rsp? any) (λ (oo) void)]
+		 [handle-server-time-rsp (-> moment? any) (λ (st) void)]
+		 [hostname string? "127.0.0.1"]
+		 [port-no port-number? 7497]
+		 [write-messages boolean? #f])]{
 
 On construction, we attempt to connect to the TWS server from the specified @racket[hostname] and @racket[port-no]. Encryption is
  not used currently; this library is not recommended to be used over an unsecure network.
@@ -177,6 +179,120 @@ will retrieve all executions within a week.
 				      'bsk 'icu 'ics #f) #f]
                  [exchange string? ""]
                  [side (or/c 'buy 'sell 'sshort #f) #f])]{}
+
+}
+
+@subsection{Historical Data}
+
+@defclass[historical-data-req% ibkr-msg% (req-msg<%>)]{
+
+Request message to receive @racket[historical-data-rsp]s. The interesting part of this response are the @racket[bar]s
+ that are sent back and can be used for display in a chart. As an example,
+
+@racketblock[
+(send ibkr send-msg (new historical-data-req%
+                         [request-id 22]
+                         [symbol "UPS"]
+			 [security-type 'stk]
+			 [exchange "SMART"]))
+]
+
+As of 2020-09-03, the smallest set of data at the finest resolution is to request 1-second bars over a duration of 30
+ seconds.
+
+You will need to track the relationship between your request-id and your parameters as the returned @racket[historical-data-rsp]s
+ will not have the symbol, security-type, etc. information.
+
+@defconstructor[([request-id integer? 0]
+                 [contract-id integer? 0]
+                 [symbol string? ""]
+                 [security-type (or/c 'stk 'opt 'fut 'cash 'bond 'cfd
+		 		      'fop 'war 'iopt 'fwd 'bag 'ind
+				      'bill 'fund 'fixed 'slb 'news 'cmdty
+				      'bsk 'icu 'ics #f) #f]
+                 [expiry (or/c date? #f) #f]
+                 [strike rational? 0]
+                 [right (or/c 'call 'put #f) #f]
+                 [multiplier (or/c rational? #f) #f]
+                 [exchange string? ""]
+                 [primary-exchange string? ""]
+                 [currency string? ""]
+                 [local-symbol string? ""]
+                 [trading-class string? ""]
+                 [include-expired boolean? #f]
+                 [end-moment moment? (now/moment)]
+                 [bar-size (or/c '1-secs '5-secs '15-secs '30-secs '1-min
+		                 '2-mins '3-mins '5-mins '15-mins
+                                 '30-mins '1-hour '2-hours '3-hours
+				 '4-hours '8-hours '1-day '1W '1M) '1-hour]
+                 [duration period? (days 1)]
+                 [use-rth boolean? #f]
+                 [what-to-show (or/c 'trades 'midpoint 'bid 'ask 'bid-ask
+		                     'historical-volatility 'option-implied-volatility
+				     'fee-rate 'rebate-rate) 'trades]
+                 [combo-legs (listof combo-leg?) (list)]
+                 [keep-up-to-date boolean? #f]
+                 [chart-options string? ""])]{}
+
+}
+
+@defclass[cancel-historical-data-req% ibkr-msg% (req-msg<%>)]{
+
+Request message to stop receiving @racket[historical-data-rsp]s.
+
+@defconstructor[([request-id integer? 0])]{}
+
+}
+
+@subsection{Market Data}
+
+@defclass[market-data-req% ibkr-msg% (req-msg<%>)]{
+
+Request message to receive streaming @racket[market-data-rsp]s. As an example,
+
+@racketblock[
+(send ibkr send-msg (new market-data-req%
+                         [request-id 23]
+                         [symbol "UPS"]
+			 [security-type 'stk]
+			 [exchange "SMART"]))
+]
+
+You will need to track the relationship between your request-id and your parameters as the returned @racket[market-data-rsp]s
+ will not have the symbol, security-type, etc. information.
+
+@defconstructor[([request-id integer? 0]
+                 [contract-id integer? 0]
+                 [symbol string? ""]
+                 [security-type (or/c 'stk 'opt 'fut 'cash 'bond 'cfd
+		 		      'fop 'war 'iopt 'fwd 'bag 'ind
+				      'bill 'fund 'fixed 'slb 'news 'cmdty
+				      'bsk 'icu 'ics #f) #f]
+                 [expiry (or/c date? #f) #f]
+                 [strike rational? 0]
+                 [right (or/c 'call 'put #f) #f]
+                 [multiplier (or/c rational? #f) #f]
+                 [exchange string? ""]
+                 [primary-exchange string? ""]
+                 [currency string? ""]
+                 [local-symbol string? ""]
+                 [trading-class string? ""]
+                 [combo-legs (listof combo-leg?) (list)]
+                 [delta-neutral-contract-id (or/c integer? #f) #f]
+                 [delta-neutral-delta (or/c rational? #f) #f]
+                 [delta-neutral-price (or/c rational? #f) #f]
+                 [generic-tick-list string? ""]
+                 [snapshot boolean? #f]
+                 [regulatory-snapshot boolean? #f]
+                 [market-data-options string? ""])]{}
+
+}
+
+@defclass[cancel-market-data-req% ibkr-msg% (req-msg<%>)]{
+
+Request message to stop receiving @racket[market-data-rsp]s.
+
+@defconstructor[([request-id integer? 0])]{}
 
 }
 
@@ -368,58 +484,58 @@ Please note that the fields @racket[action], @racket[order-type], @racket[time-i
 @defmodule[interactive-brokers-api/response-messages]
 
 @defstruct[commission-report-rsp
-    ((execution-id string?)
-     (commission rational?)
-     (currency string?)
-     (realized-pnl (or/c rational? #f))
-     (yield (or/c rational? #f))
-     (yield-redemption-date (or/c integer? #f)))]{
+((execution-id string?)
+ (commission rational?)
+ (currency string?)
+ (realized-pnl (or/c rational? #f))
+ (yield (or/c rational? #f))
+ (yield-redemption-date (or/c integer? #f)))]{
 
 Commission reports are sent along with executions when calls are made to @racket[executions-req%].
 
 }
 
 @defstruct[contract-details-rsp
-    ((request-id integer?)
-     (symbol string?)
-     (security-type (or/c 'stk 'opt 'fut 'cash 'bond 'cfd
-                          'fop 'war 'iopt 'fwd 'bag 'ind
-			  'bill 'fund 'fixed 'slb 'news 'cmdty
-			  'bsk 'icu 'ics #f))
-     (expiry (or/c date? #f))
-     (strike (or/c rational? #f))
-     (right (or/c 'call 'put #f))
-     (exchange string?)
-     (currency string?)
-     (local-symbol string?)
-     (market-name string?)
-     (trading-class string?)
-     (contract-id integer?)
-     (minimum-tick-increment rational?)
-     (md-size-multiplier integer?)
-     (multiplier string?)
-     (order-types (listof string?))
-     (valid-exchanges (listof string?))
-     (price-magnifier integer?)
-     (underlying-contract-id integer?)
-     (long-name string?)
-     (primary-exchange string?)
-     (contract-month string?)
-     (industry string?)
-     (category string?)
-     (subcategory string?)
-     (time-zone-id string?)
-     (trading-hours (listof string?))
-     (liquid-hours (listof string?))
-     (ev-rule string?)
-     (ev-multiplier string?)
-     (security-ids hash?)
-     (agg-group integer?)
-     (underlying-symbol string?)
-     (underlying-security-type (or/c 'stk 'opt 'fut 'cash 'bond 'cfd 'fop 'war 'iopt 'fwd 'bag
-                                     'ind 'bill 'fund 'fixed 'slb 'news 'cmdty 'bsk 'icu 'ics #f))
-     (market-rule-ids (listof string?))
-     (real-expiry (or/c date? #f)))]{
+((request-id integer?)
+ (symbol string?)
+ (security-type (or/c 'stk 'opt 'fut 'cash 'bond 'cfd
+		      'fop 'war 'iopt 'fwd 'bag 'ind
+		      'bill 'fund 'fixed 'slb 'news 'cmdty
+		      'bsk 'icu 'ics #f))
+ (expiry (or/c date? #f))
+ (strike (or/c rational? #f))
+ (right (or/c 'call 'put #f))
+ (exchange string?)
+ (currency string?)
+ (local-symbol string?)
+ (market-name string?)
+ (trading-class string?)
+ (contract-id integer?)
+ (minimum-tick-increment rational?)
+ (md-size-multiplier integer?)
+ (multiplier string?)
+ (order-types (listof string?))
+ (valid-exchanges (listof string?))
+ (price-magnifier integer?)
+ (underlying-contract-id integer?)
+ (long-name string?)
+ (primary-exchange string?)
+ (contract-month string?)
+ (industry string?)
+ (category string?)
+ (subcategory string?)
+ (time-zone-id string?)
+ (trading-hours (listof string?))
+ (liquid-hours (listof string?))
+ (ev-rule string?)
+ (ev-multiplier string?)
+ (security-ids hash?)
+ (agg-group integer?)
+ (underlying-symbol string?)
+ (underlying-security-type (or/c 'stk 'opt 'fut 'cash 'bond 'cfd 'fop 'war 'iopt 'fwd 'bag
+				 'ind 'bill 'fund 'fixed 'slb 'news 'cmdty 'bsk 'icu 'ics #f))
+ (market-rule-ids (listof string?))
+ (real-expiry (or/c date? #f)))]{
 
 When receiving contract details, it is often nice to use the @racket[contract-id] for subsequent new order or market data
 requests as these identifiers are unique.
@@ -427,9 +543,9 @@ requests as these identifiers are unique.
 }
 
 @defstruct[err-rsp
-    ((id integer?)
-     (error-code integer?)
-     (error-msg string?))]{
+((id integer?)
+ (error-code integer?)
+ (error-msg string?))]{
 
 Generic error message for incorrectly formed requests. Consult the Java API docs for more information. 
 
@@ -437,44 +553,63 @@ Generic error message for incorrectly formed requests. Consult the Java API docs
 
 @defstruct[execution-rsp
 ((request-id integer?)
-     (order-id integer?)
-     (contract-id integer?)
-     (symbol string?)
-     (security-type (or/c 'stk 'opt 'fut 'cash 'bond 'cfd
-                          'fop 'war 'iopt 'fwd 'bag 'ind
-			  'bill 'fund 'fixed 'slb 'news 'cmdty
-			  'bsk 'icu 'ics #f))
-     (expiry (or/c date? #f))
-     (strike (or/c rational? #f))
-     (right (or/c 'call 'put #f))
-     (multiplier (or/c rational? #f))
-     (exchange string?)
-     (currency string?)
-     (local-symbol string?)
-     (trading-class string?)
-     (execution-id string?)
-     (timestamp moment?)
-     (account string?)
-     (executing-exchange string?)
-     (side string?)
-     (shares rational?)
-     (price rational?)
-     (perm-id integer?)
-     (client-id integer?)
-     (liquidation integer?)
-     (cumulative-quantity integer?)
-     (average-price rational?)
-     (order-reference string?)
-     (ev-rule string?)
-     (ev-multiplier (or/c rational? #f))
-     (model-code string?))]{
+ (order-id integer?)
+ (contract-id integer?)
+ (symbol string?)
+ (security-type (or/c 'stk 'opt 'fut 'cash 'bond 'cfd
+		      'fop 'war 'iopt 'fwd 'bag 'ind
+		      'bill 'fund 'fixed 'slb 'news 'cmdty
+		      'bsk 'icu 'ics #f))
+ (expiry (or/c date? #f))
+ (strike (or/c rational? #f))
+ (right (or/c 'call 'put #f))
+ (multiplier (or/c rational? #f))
+ (exchange string?)
+ (currency string?)
+ (local-symbol string?)
+ (trading-class string?)
+ (execution-id string?)
+ (timestamp moment?)
+ (account string?)
+ (executing-exchange string?)
+ (side string?)
+ (shares rational?)
+ (price rational?)
+ (perm-id integer?)
+ (client-id integer?)
+ (liquidation integer?)
+ (cumulative-quantity integer?)
+ (average-price rational?)
+ (order-reference string?)
+ (ev-rule string?)
+ (ev-multiplier (or/c rational? #f))
+ (model-code string?))]{
 
 It is recommended to periodically call @racket[executions-req%] to make sure you receive all of the executions that have occurred.
 
 }
 
+@defstruct[historical-data-rsp
+((request-id integer?)
+ (start-moment moment?)
+ (end-moment moment?)
+ (bars (listof bar?)))]{
+
+Be sure to check for @racket[err-rsp]s if you are not receiving historical data when you expect to.
+
+}
+
+@defstruct[market-data-rsp
+((request-id integer?)
+ (type symbol?)
+ (value rational?))]{
+
+More information about tick types can be found in the @link["https://interactivebrokers.github.io/tws-api/tick_types.html"]{IBKR Docs}.
+
+}
+
 @defstruct[next-valid-id-rsp
-    ((order-id integer?))]{
+((order-id integer?))]{
 
 This response should be saved locally so that calls to @racket[place-order-req%] can include this saved value. It is not recommended
  to just track order IDs independently of what the API is giving you. As a reminder, it is necessary to provide an order ID to
@@ -483,161 +618,161 @@ This response should be saved locally so that calls to @racket[place-order-req%]
 }
 
 @defstruct[open-order-rsp
-    ((order-id integer?)
-     (contract-id integer?)
-     (symbol string?)
-     (security-type (or/c 'stk 'opt 'fut 'cash 'bond 'cfd
-                          'fop 'war 'iopt 'fwd 'bag 'ind
-			  'bill 'fund 'fixed 'slb 'news 'cmdty
-			  'bsk 'icu 'ics #f))
-     (expiry (or/c date? #f))
-     (strike (or/c rational? #f))
-     (right (or/c 'call 'put #f))
-     (multiplier (or/c rational? #f))
-     (exchange string?)
-     (currency string?)
-     (local-symbol string?)
-     (trading-class string?)
-     (action (or/c 'buy 'sell 'sshort))
-     (total-quantity rational?)
-     (order-type string?)
-     (limit-price (or/c rational? #f))
-     (aux-price (or/c rational? #f))
-     (time-in-force (or/c 'day 'gtc 'opg 'ioc 'gtd 'gtt
-                          'auc 'fok 'gtx 'dtc))
-     (oca-group string?)
-     (account string?)
-     (open-close (or/c 'open 'close #f))
-     (origin (or/c 'customer 'firm))
-     (order-ref string?)
-     (client-id integer?) ; new
-     (perm-id integer?) ; new
-     (outside-rth boolean?)
-     (hidden boolean?)
-     (discretionary-amount (or/c rational? #f))
-     (good-after-time (or/c moment? #f))
-     (advisor-group string?)
-     (advisor-method string?)
-     (advisor-percentage string?)
-     (advisor-profile string?)
-     (model-code string?)
-     (good-till-date (or/c date? #f))
-     (rule-80-a string?)
-     (percent-offset (or/c rational? #f))
-     (settling-firm string?)
-     (short-sale-slot (or/c 0 1 2))
-     (designated-location string?)
-     (exempt-code integer?)
-     (auction-strategy (or/c 'match 'improvement 'transparent #f))
-     (starting-price (or/c rational? #f))
-     (stock-ref-price (or/c rational? #f))
-     (delta (or/c rational? #f))
-     (stock-range-lower (or/c rational? #f))
-     (stock-range-upper (or/c rational? #f))
-     (display-size (or/c integer? #f))
-     (block-order boolean?)
-     (sweep-to-fill boolean?)
-     (all-or-none boolean?)
-     (minimum-quantity (or/c integer? #f))
-     (oca-type integer?)
-     (electronic-trade-only boolean?)
-     (firm-quote-only boolean?)
-     (nbbo-price-cap (or/c rational? #f))
-     (parent-id integer?)
-     (trigger-method integer?)
-     (volatility (or/c rational? #f))
-     (volatility-type (or/c integer? #f))
-     (delta-neutral-order-type string?)
-     (delta-neutral-aux-price (or/c rational? #f))
-     (delta-neutral-contract-id (or/c integer? #f))
-     (delta-neutral-settling-firm string?)
-     (delta-neutral-clearing-account string?)
-     (delta-neutral-clearing-intent string?)
-     (delta-neutral-open-close (or/c 'open 'close #f))
-     (delta-neutral-short-sale boolean?)
-     (delta-neutral-short-sale-slot (or/c integer? #f))
-     (delta-neutral-designated-location string?)
-     (continuous-update integer?)
-     (reference-price-type (or/c integer? #f))
-     (trailing-stop-price (or/c rational? #f))
-     (trailing-percent (or/c rational? #f))
-     (basis-points (or/c rational? #f))
-     (basis-points-type (or/c integer? #f))
-     (combo-legs-description string?)
-     (combo-legs (listof combo-leg?))
-     (order-combo-legs (listof rational?))
-     (smart-combo-routing-params hash?)
-     (scale-init-level-size (or/c integer? #f))
-     (scale-subs-level-size (or/c integer? #f))
-     (scale-price-increment (or/c rational? #f))
-     (scale-price-adjust-value (or/c rational? #f))
-     (scale-price-adjust-interval (or/c integer? #f))
-     (scale-profit-offset (or/c rational? #f))
-     (scale-auto-reset boolean?)
-     (scale-init-position (or/c integer? #f))
-     (scale-init-fill-quantity (or/c integer? #f))
-     (scale-random-percent boolean?)
-     (hedge-type string?)
-     (hedge-param string?)
-     (opt-out-smart-routing boolean?)
-     (clearing-account string?)
-     (clearing-intent (or/c 'ib 'away 'pta #f))
-     (not-held boolean?)
-     (delta-neutral-underlying-contract-id (or/c integer? #f))
-     (delta-neutral-underlying-delta (or/c rational? #f))
-     (delta-neutral-underlying-price (or/c rational? #f))
-     (algo-strategy string?)
-     (algo-strategy-params (listof string?))
-     (solicited boolean?)
-     (what-if boolean?)
-     (status string?)
-     (initial-margin-before (or/c rational? #f))
-     (maintenance-margin-before (or/c rational? #f))
-     (equity-with-loan-before (or/c rational? #f))
-     (initial-margin-change (or/c rational? #f))
-     (maintenance-margin-change (or/c rational? #f))
-     (equity-with-loan-change (or/c rational? #f))
-     (initial-margin-after (or/c rational? #f))
-     (maintenance-margin-after (or/c rational? #f))
-     (equity-with-loan-after (or/c rational? #f))
-     (commission (or/c rational? #f))
-     (minimum-commission (or/c rational? #f))
-     (maximum-commission (or/c rational? #f))
-     (commission-currency string?)
-     (warning-text string?)
-     (randomize-size boolean?)
-     (randomize-price boolean?)
-     (reference-contract-id (or/c integer? #f))
-     (is-pegged-change-amount-decrease boolean?)
-     (pegged-change-amount (or/c rational? #f))
-     (reference-change-amount (or/c rational? #f))
-     (reference-exchange-id string?)
-     (conditions (listof condition?))
-     (adjusted-order-type (or/c 'mkt 'lmt 'stp 'stp-limit
-                                'rel 'trail 'box-top 'fix-pegged
-				'lit 'lmt-+-mkt 'loc 'mit
-				'mkt-prt 'moc 'mtl 'passv-rel
-				'peg-bench 'peg-mid 'peg-mkt 'peg-prim
-                                'peg-stk 'rel-+-lmt 'rel-+-mkt 'snap-mid
-				'snap-mkt 'snap-prim 'stp-prt 'trail-limit
-				'trail-lit 'trail-lmt-+-mkt 'trail-mit
-				'trail-rel-+-mkt 'vol 'vwap 'quote 'ppv
-				'pdv 'pmv 'psv #f))
-     (trigger-price (or/c rational? #f))
-     (trail-stop-price (or/c rational? #f))
-     (limit-price-offset (or/c rational? #f))
-     (adjusted-stop-price (or/c rational? #f))
-     (adjusted-stop-limit-price (or/c rational? #f))
-     (adjusted-trailing-amount (or/c rational? #f))
-     (adjusted-trailing-unit integer?)
-     (soft-dollar-tier-name string?)
-     (soft-dollar-tier-value string?)
-     (soft-dollar-tier-display-name string?)
-     (cash-quantity rational?)
-     (dont-use-auto-price-for-hedge boolean?)
-     (is-oms-container boolean?)
-     (discretionary-up-to-limit-price boolean?)
-     (use-price-management-algo boolean?))]{
+((order-id integer?)
+ (contract-id integer?)
+ (symbol string?)
+ (security-type (or/c 'stk 'opt 'fut 'cash 'bond 'cfd
+		      'fop 'war 'iopt 'fwd 'bag 'ind
+		      'bill 'fund 'fixed 'slb 'news 'cmdty
+		      'bsk 'icu 'ics #f))
+ (expiry (or/c date? #f))
+ (strike (or/c rational? #f))
+ (right (or/c 'call 'put #f))
+ (multiplier (or/c rational? #f))
+ (exchange string?)
+ (currency string?)
+ (local-symbol string?)
+ (trading-class string?)
+ (action (or/c 'buy 'sell 'sshort))
+ (total-quantity rational?)
+ (order-type string?)
+ (limit-price (or/c rational? #f))
+ (aux-price (or/c rational? #f))
+ (time-in-force (or/c 'day 'gtc 'opg 'ioc 'gtd 'gtt
+		      'auc 'fok 'gtx 'dtc))
+ (oca-group string?)
+ (account string?)
+ (open-close (or/c 'open 'close #f))
+ (origin (or/c 'customer 'firm))
+ (order-ref string?)
+ (client-id integer?) ; new
+ (perm-id integer?) ; new
+ (outside-rth boolean?)
+ (hidden boolean?)
+ (discretionary-amount (or/c rational? #f))
+ (good-after-time (or/c moment? #f))
+ (advisor-group string?)
+ (advisor-method string?)
+ (advisor-percentage string?)
+ (advisor-profile string?)
+ (model-code string?)
+ (good-till-date (or/c date? #f))
+ (rule-80-a string?)
+ (percent-offset (or/c rational? #f))
+ (settling-firm string?)
+ (short-sale-slot (or/c 0 1 2))
+ (designated-location string?)
+ (exempt-code integer?)
+ (auction-strategy (or/c 'match 'improvement 'transparent #f))
+ (starting-price (or/c rational? #f))
+ (stock-ref-price (or/c rational? #f))
+ (delta (or/c rational? #f))
+ (stock-range-lower (or/c rational? #f))
+ (stock-range-upper (or/c rational? #f))
+ (display-size (or/c integer? #f))
+ (block-order boolean?)
+ (sweep-to-fill boolean?)
+ (all-or-none boolean?)
+ (minimum-quantity (or/c integer? #f))
+ (oca-type integer?)
+ (electronic-trade-only boolean?)
+ (firm-quote-only boolean?)
+ (nbbo-price-cap (or/c rational? #f))
+ (parent-id integer?)
+ (trigger-method integer?)
+ (volatility (or/c rational? #f))
+ (volatility-type (or/c integer? #f))
+ (delta-neutral-order-type string?)
+ (delta-neutral-aux-price (or/c rational? #f))
+ (delta-neutral-contract-id (or/c integer? #f))
+ (delta-neutral-settling-firm string?)
+ (delta-neutral-clearing-account string?)
+ (delta-neutral-clearing-intent string?)
+ (delta-neutral-open-close (or/c 'open 'close #f))
+ (delta-neutral-short-sale boolean?)
+ (delta-neutral-short-sale-slot (or/c integer? #f))
+ (delta-neutral-designated-location string?)
+ (continuous-update integer?)
+ (reference-price-type (or/c integer? #f))
+ (trailing-stop-price (or/c rational? #f))
+ (trailing-percent (or/c rational? #f))
+ (basis-points (or/c rational? #f))
+ (basis-points-type (or/c integer? #f))
+ (combo-legs-description string?)
+ (combo-legs (listof combo-leg?))
+ (order-combo-legs (listof rational?))
+ (smart-combo-routing-params hash?)
+ (scale-init-level-size (or/c integer? #f))
+ (scale-subs-level-size (or/c integer? #f))
+ (scale-price-increment (or/c rational? #f))
+ (scale-price-adjust-value (or/c rational? #f))
+ (scale-price-adjust-interval (or/c integer? #f))
+ (scale-profit-offset (or/c rational? #f))
+ (scale-auto-reset boolean?)
+ (scale-init-position (or/c integer? #f))
+ (scale-init-fill-quantity (or/c integer? #f))
+ (scale-random-percent boolean?)
+ (hedge-type string?)
+ (hedge-param string?)
+ (opt-out-smart-routing boolean?)
+ (clearing-account string?)
+ (clearing-intent (or/c 'ib 'away 'pta #f))
+ (not-held boolean?)
+ (delta-neutral-underlying-contract-id (or/c integer? #f))
+ (delta-neutral-underlying-delta (or/c rational? #f))
+ (delta-neutral-underlying-price (or/c rational? #f))
+ (algo-strategy string?)
+ (algo-strategy-params (listof string?))
+ (solicited boolean?)
+ (what-if boolean?)
+ (status string?)
+ (initial-margin-before (or/c rational? #f))
+ (maintenance-margin-before (or/c rational? #f))
+ (equity-with-loan-before (or/c rational? #f))
+ (initial-margin-change (or/c rational? #f))
+ (maintenance-margin-change (or/c rational? #f))
+ (equity-with-loan-change (or/c rational? #f))
+ (initial-margin-after (or/c rational? #f))
+ (maintenance-margin-after (or/c rational? #f))
+ (equity-with-loan-after (or/c rational? #f))
+ (commission (or/c rational? #f))
+ (minimum-commission (or/c rational? #f))
+ (maximum-commission (or/c rational? #f))
+ (commission-currency string?)
+ (warning-text string?)
+ (randomize-size boolean?)
+ (randomize-price boolean?)
+ (reference-contract-id (or/c integer? #f))
+ (is-pegged-change-amount-decrease boolean?)
+ (pegged-change-amount (or/c rational? #f))
+ (reference-change-amount (or/c rational? #f))
+ (reference-exchange-id string?)
+ (conditions (listof condition?))
+ (adjusted-order-type (or/c 'mkt 'lmt 'stp 'stp-limit
+			    'rel 'trail 'box-top 'fix-pegged
+			    'lit 'lmt-+-mkt 'loc 'mit
+			    'mkt-prt 'moc 'mtl 'passv-rel
+			    'peg-bench 'peg-mid 'peg-mkt 'peg-prim
+			    'peg-stk 'rel-+-lmt 'rel-+-mkt 'snap-mid
+			    'snap-mkt 'snap-prim 'stp-prt 'trail-limit
+			    'trail-lit 'trail-lmt-+-mkt 'trail-mit
+			    'trail-rel-+-mkt 'vol 'vwap 'quote 'ppv
+			    'pdv 'pmv 'psv #f))
+ (trigger-price (or/c rational? #f))
+ (trail-stop-price (or/c rational? #f))
+ (limit-price-offset (or/c rational? #f))
+ (adjusted-stop-price (or/c rational? #f))
+ (adjusted-stop-limit-price (or/c rational? #f))
+ (adjusted-trailing-amount (or/c rational? #f))
+ (adjusted-trailing-unit integer?)
+ (soft-dollar-tier-name string?)
+ (soft-dollar-tier-value string?)
+ (soft-dollar-tier-display-name string?)
+ (cash-quantity rational?)
+ (dont-use-auto-price-for-hedge boolean?)
+ (is-oms-container boolean?)
+ (discretionary-up-to-limit-price boolean?)
+ (use-price-management-algo boolean?))]{
 
 This response is largely just telling you what you already provided to @racket[place-order-req%]. The fields of interest here
  are the generated @racket[client-id] and @racket[perm-id].
@@ -648,17 +783,29 @@ This response is largely just telling you what you already provided to @racket[p
 
 @defmodule[interactive-brokers-api/base-structs]
 
+This struct is returned as part of a historical data request.
+
+@defstruct[bar
+((moment moment?)
+ (open rational?)
+ (high rational?)
+ (low rational?)
+ (close rational?)
+ (volume integer?)
+ (weighted-average-price rational?)
+ (count integer?))]
+
 These structs are used for placing complex orders. You must @racket[require] the module to use them.
 
 @defstruct[combo-leg
-    ((contract-id integer?)
-     (ratio integer?)
-     (action (or/c 'buy 'sell 'sshort))
-     (exchange string?)
-     (open-close (or/c 'same 'open 'close #f))
-     (short-sale-slot (or/c 0 1 2))
-     (designated-location string?)
-     (exempt-code integer?))]{
+((contract-id integer?)
+ (ratio integer?)
+ (action (or/c 'buy 'sell 'sshort))
+ (exchange string?)
+ (open-close (or/c 'same 'open 'close #f))
+ (short-sale-slot (or/c 0 1 2))
+ (designated-location string?)
+ (exempt-code integer?))]{
 
 Use @racket[combo-leg] when you want to place a spread. This is commonly done for options and will work for many strategies. Note
  that you can only provide @racket[contract-id], which you can retrieve from @racket[contract-details-req%].
@@ -668,14 +815,14 @@ Use @racket[combo-leg] when you want to place a spread. This is commonly done fo
 @defstruct[condition
 ((type (or/c 'price 'time 'margin
              'execution 'volume 'percent-change))
-     (boolean-operator (or/c 'and 'or))
-     (comparator (or/c 'less-than 'greater-than))
-     (value (or/c rational? moment?))
-     (contract-id (or/c integer? #f))
-     (exchange (or/c string? #f))
-     (trigger-method (or/c 'default 'double-bid/ask 'last
-                           'double-last 'bid/ask 'last-of-bid/ask
-			   'mid-point #f)))]{
+ (boolean-operator (or/c 'and 'or))
+ (comparator (or/c 'less-than 'greater-than))
+ (value (or/c rational? moment?))
+ (contract-id (or/c integer? #f))
+ (exchange (or/c string? #f))
+ (trigger-method (or/c 'default 'double-bid/ask 'last
+		       'double-last 'bid/ask 'last-of-bid/ask
+		       'mid-point #f)))]{
 
 Use @racket[condition] when you want your order to either take effect or be canceled only when certain conditions are met. Currently,
  only @racket['price] and @racket['time] do anything useful within the client.

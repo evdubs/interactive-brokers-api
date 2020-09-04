@@ -1,15 +1,20 @@
 #lang racket/base
 
 (require gregor
+         gregor/period
          racket/class
          racket/contract
          racket/match
          racket/string
          "base-structs.rkt")
 
-(provide contract-details-req%
+(provide cancel-historical-data-req%
+         cancel-market-data-req%
+         contract-details-req%
          executions-req%
          ibkr-msg%
+         historical-data-req%
+         market-data-req%
          open-orders-req%
          place-order-req%
          req-msg<%>
@@ -28,6 +33,38 @@
   ; strings are then all appended together to form the message string.
   (interface ()
     [->string (->m string?)]))
+
+(define/contract cancel-historical-data-req%
+  (class/c (inherit-field [msg-id integer?]
+                          [version integer?])
+           (init-field [request-id integer?]))
+  (class* ibkr-msg%
+    (req-msg<%>)
+    (super-new [msg-id 25]
+               [version 1])
+    (inherit-field msg-id version)
+    (init-field [request-id 0])
+    (define/public (->string)
+      (string-append
+       (number->string msg-id) "\0"
+       (number->string version) "\0"
+       (number->string request-id) "\0"))))
+
+(define/contract cancel-market-data-req%
+  (class/c (inherit-field [msg-id integer?]
+                          [version integer?])
+           (init-field [request-id integer?]))
+  (class* ibkr-msg%
+    (req-msg<%>)
+    (super-new [msg-id 2]
+               [version 1])
+    (inherit-field msg-id version)
+    (init-field [request-id 0])
+    (define/public (->string)
+      (string-append
+       (number->string msg-id) "\0"
+       (number->string version) "\0"
+       (number->string request-id) "\0"))))
 
 (define/contract contract-details-req%
   (class/c (inherit-field [msg-id integer?]
@@ -127,6 +164,203 @@
        (if (symbol? security-type) (string-upcase (symbol->string security-type)) "") "\0"
        exchange "\0"
        (if (symbol? side) (string-upcase (symbol->string side)) "") "\0"))))
+
+(define/contract historical-data-req%
+  (class/c (inherit-field [msg-id integer?]
+                          [version integer?])
+           (init-field [request-id integer?]
+                       [contract-id integer?]
+                       [symbol string?]
+                       [security-type (or/c 'stk 'opt 'fut 'cash 'bond 'cfd 'fop 'war 'iopt 'fwd 'bag
+                                            'ind 'bill 'fund 'fixed 'slb 'news 'cmdty 'bsk 'icu 'ics #f)]
+                       [expiry (or/c date? #f)]
+                       [strike rational?]
+                       [right (or/c 'call 'put #f)]
+                       [multiplier (or/c rational? #f)]
+                       [exchange string?]
+                       [primary-exchange string?]
+                       [currency string?]
+                       [local-symbol string?]
+                       [trading-class string?]
+                       [include-expired boolean?]
+                       [end-moment moment?]
+                       [bar-size (or/c '1-secs '5-secs '15-secs '30-secs '1-min '2-mins '3-mins '5-mins '15-mins
+                                       '30-mins '1-hour '2-hours '3-hours '4-hours '8-hours '1-day '1W '1M)]
+                       [duration period?]
+                       [use-rth boolean?]
+                       [what-to-show (or/c 'trades 'midpoint 'bid 'ask 'bid-ask 'historical-volatility
+                                           'option-implied-volatility 'fee-rate 'rebate-rate)]
+                       [combo-legs (listof combo-leg?)]
+                       [keep-up-to-date boolean?]
+                       [chart-options string?]))
+  (class* ibkr-msg%
+    (req-msg<%>)
+    (super-new [msg-id 20]
+               [version 6])
+    (inherit-field msg-id)
+    (init-field [request-id 0]
+                [contract-id 0]
+                [symbol ""]
+                [security-type #f]
+                [expiry #f]
+                [strike 0]
+                [right #f]
+                [multiplier #f]
+                [exchange ""]
+                [primary-exchange ""]
+                [currency ""]
+                [local-symbol ""]
+                [trading-class ""]
+                [include-expired #f]
+                [end-moment (now/moment)]
+                [bar-size '1-hour]
+                [duration (days 1)]
+                [use-rth #f]
+                [what-to-show 'trades]
+                [combo-legs (list)]
+                [keep-up-to-date #f]
+                [chart-options ""])
+    (define/public (->string)
+      (string-append
+       (number->string msg-id) "\0"
+       ; version is unused for later server protocol versions
+       (number->string request-id) "\0"
+       (number->string contract-id) "\0"
+       symbol "\0"
+       (if (symbol? security-type) (string-upcase (symbol->string security-type)) "") "\0"
+       (if (date? expiry) (~t expiry "yyyyMMdd") "") "\0"
+       (real->decimal-string strike 2) "\0"
+       (if (symbol? right) (string-upcase (substring (symbol->string right) 0 1)) "") "\0"
+       (if (rational? multiplier) (number->string multiplier) "") "\0"
+       exchange "\0"
+       primary-exchange "\0"
+       currency "\0"
+       local-symbol "\0"
+       trading-class "\0"
+       (if include-expired "1" "0") "\0"
+       (~t end-moment "yyyyMMdd HH:mm:ss") "\0"
+       (string-replace (symbol->string bar-size) "-" " ") "\0"
+       (cond [(time-period? duration)
+              (string-append (number->string (+ (* 60 60 (period-ref duration 'hours))
+                                                (* 60 (period-ref duration 'minutes))
+                                                (period-ref duration 'seconds)))
+                             " S")]
+             [(date-period? duration)
+              (string-append (number->string (+ (* 365 (period-ref duration 'years))
+                                                (* 30 (period-ref duration 'months))
+                                                (* 7 (period-ref duration 'weeks))
+                                                (period-ref duration 'days)))
+                             " D")]) "\0"
+       (if use-rth "1" "0") "\0"
+       (string-replace (string-upcase (symbol->string what-to-show)) "-" "_") "\0"
+       ; format-date is a parameter for the Java API, but we are ignoring it. clients will receive a moment object
+       ; that can be converted to a string or 'seconds since epoch' value
+       "1" "\0" ; format-date
+       (if (equal? 'bag security-type)
+           (string-append
+            (number->string (length combo-legs)) "\0"
+            (apply string-append
+                   (map (λ (cl) (string-append (number->string (combo-leg-contract-id cl)) "\0"
+                                               (number->string (combo-leg-ratio cl)) "\0"
+                                               (string-upcase (symbol->string (combo-leg-action cl))) "\0"
+                                               (combo-leg-exchange cl) "\0"))
+                        combo-legs)))
+           "")
+       (if keep-up-to-date "1" "0") "\0"
+       chart-options "\0"))))
+
+(define/contract market-data-req%
+  (class/c (inherit-field [msg-id integer?]
+                          [version integer?])
+           (init-field [request-id integer?]
+                       [contract-id integer?]
+                       [symbol string?]
+                       [security-type (or/c 'stk 'opt 'fut 'cash 'bond 'cfd 'fop 'war 'iopt 'fwd 'bag
+                                            'ind 'bill 'fund 'fixed 'slb 'news 'cmdty 'bsk 'icu 'ics #f)]
+                       [expiry (or/c date? #f)]
+                       [strike rational?]
+                       [right (or/c 'call 'put #f)]
+                       [multiplier (or/c rational? #f)]
+                       [exchange string?]
+                       [primary-exchange string?]
+                       [currency string?]
+                       [local-symbol string?]
+                       [trading-class string?]
+                       [combo-legs (listof combo-leg?)]
+                       [delta-neutral-contract-id (or/c integer? #f)]
+                       [delta-neutral-delta (or/c rational? #f)]
+                       [delta-neutral-price (or/c rational? #f)]
+                       [generic-tick-list string?]
+                       [snapshot boolean?]
+                       [regulatory-snapshot boolean?]
+                       [market-data-options string?]))
+  (class* ibkr-msg%
+    (req-msg<%>)
+    (super-new [msg-id 1]
+               [version 11])
+    (inherit-field msg-id version)
+    (init-field [request-id 0]
+                [contract-id 0]
+                [symbol ""]
+                [security-type #f]
+                [expiry #f]
+                [strike 0]
+                [right #f]
+                [multiplier #f]
+                [exchange ""]
+                [primary-exchange ""]
+                [currency ""]
+                [local-symbol ""]
+                [trading-class ""]
+                [combo-legs (list)]
+                [delta-neutral-contract-id #f]
+                [delta-neutral-delta #f]
+                [delta-neutral-price #f]
+                [generic-tick-list ""]
+                [snapshot #f]
+                [regulatory-snapshot #f]
+                [market-data-options ""])
+    (define/public (->string)
+      (string-append
+       (number->string msg-id) "\0"
+       (number->string version) "\0"
+       (number->string request-id) "\0"
+       (number->string contract-id) "\0"
+       symbol "\0"
+       (if (symbol? security-type) (string-upcase (symbol->string security-type)) "") "\0"
+       (if (date? expiry) (~t expiry "yyyyMMdd") "") "\0"
+       (real->decimal-string strike 2) "\0"
+       (if (symbol? right) (string-upcase (substring (symbol->string right) 0 1)) "") "\0"
+       (if (rational? multiplier) (number->string multiplier) "") "\0"
+       exchange "\0"
+       primary-exchange "\0"
+       currency "\0"
+       local-symbol "\0"
+       trading-class "\0"
+       (if (equal? 'bag security-type)
+           (string-append
+            (number->string (length combo-legs)) "\0"
+            (apply string-append
+                   (map (λ (cl) (string-append (number->string (combo-leg-contract-id cl)) "\0"
+                                               (number->string (combo-leg-ratio cl)) "\0"
+                                               (string-upcase (symbol->string (combo-leg-action cl))) "\0"
+                                               (combo-leg-exchange cl) "\0"))
+                        combo-legs)))
+           "")
+       (if (and (integer? delta-neutral-contract-id)
+                (rational? delta-neutral-delta)
+                (rational? delta-neutral-price))
+           (string-append
+            "1" "\0"
+            (number->string delta-neutral-contract-id) "\0"
+            (real->decimal-string delta-neutral-delta 2) "\0"
+            (real->decimal-string delta-neutral-price 2))
+           "0")
+       "\0"
+       generic-tick-list "\0"
+       (if snapshot "1" "0") "\0"
+       (if regulatory-snapshot "1" "0") "\0"
+       market-data-options "\0"))))
 
 (define/contract open-orders-req%
   (class/c (inherit-field [msg-id integer?]

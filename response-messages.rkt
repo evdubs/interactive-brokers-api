@@ -90,6 +90,15 @@
      (ev-rule string?)
      (ev-multiplier (or/c rational? #f))
      (model-code string?))]
+  [struct historical-data-rsp
+    ((request-id integer?)
+     (start-moment moment?)
+     (end-moment moment?)
+     (bars (listof bar?)))]
+  [struct market-data-rsp
+    ((request-id integer?)
+     (type symbol?)
+     (value rational?))]
   [struct next-valid-id-rsp
     ((order-id integer?))]
   [struct open-order-rsp
@@ -328,6 +337,19 @@
    model-code)
   #:transparent)
 
+(struct historical-data-rsp
+  (request-id
+   start-moment
+   end-moment
+   bars)
+  #:transparent)
+
+(struct market-data-rsp
+  (request-id
+   type
+   value)
+  #:transparent)
+
 (struct next-valid-id-rsp
   (order-id)
   #:transparent)
@@ -484,13 +506,27 @@
 (define/contract (parse-msg str)
   (-> bytes? (or/c commission-report-rsp?
                    contract-details-rsp?
-                   moment?
                    err-rsp?
                    execution-rsp?
+                   historical-data-rsp?
                    (listof string?)
+                   market-data-rsp?
+                   moment?
                    next-valid-id-rsp?
                    open-order-rsp?))
   (match (string-split (bytes->string/utf-8 str) "\0")
+    ; tick-price
+    [(list-rest "1" "6" request-id type value details)
+     (market-data-rsp
+      (string->number request-id)
+      (hash-ref tick-type-hash (string->number type))
+      (string->number value))]
+    ; tick-size
+    [(list "2" "6" request-id type value)
+     (market-data-rsp
+      (string->number request-id)
+      (hash-ref tick-type-hash (string->number type))
+      (string->number value))]
     ; generic error message
     ; ignoring error responses with version < 2
     [(list "4" "2" id error-code message) (err-rsp (string->number id) (string->number error-code) message)]
@@ -854,6 +890,22 @@
                                )]
     ; managed accounts
     [(list-rest "15" num-accts accts) accts]
+    ; historical data
+    [(list-rest "17" request-id start-moment end-moment bar-count details)
+     (historical-data-rsp
+      (string->number request-id)
+      (parse-moment start-moment "yyyyMMdd  HH:mm:ss")
+      (parse-moment end-moment "yyyyMMdd  HH:mm:ss")
+      (map (λ (i) (bar
+                   (parse-moment (list-ref details (* i 8)) "yyyyMMdd  HH:mm:ss")
+                   (string->number (list-ref details (+ 1 (* i 8))))
+                   (string->number (list-ref details (+ 2 (* i 8))))
+                   (string->number (list-ref details (+ 3 (* i 8))))
+                   (string->number (list-ref details (+ 4 (* i 8))))
+                   (string->number (list-ref details (+ 5 (* i 8))))
+                   (string->number (list-ref details (+ 6 (* i 8))))
+                   (string->number (list-ref details (+ 7 (* i 8))))))
+           (range (string->number bar-count))))]
     ; commission report
     [(list-rest "59" version details) (commission-report-rsp
                                        (list-ref details 0) ; execution-id

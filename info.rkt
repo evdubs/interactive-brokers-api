@@ -6,6 +6,8 @@
 
 (define deps (list "base"
                    "binaryio"
-                   "gregor-lib"))
+                   "gregor-lib"
+                   "racket-doc"
+                   "scribble-lib"))
 
 (define scribblings '(("interactive-brokers-api.scrbl" ())))

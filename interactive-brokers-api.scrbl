@@ -197,6 +197,9 @@ Request message to receive @racket[historical-data-rsp]s. The interesting part o
 			 [exchange "SMART"]))
 ]
 
+will retrieve 1-hour (@racket[bar-size] default) open-high-low-close bars from yesterday to today
+ (@racket[end-moment] and @racket[duration] defaults) representing trades (@racket[what-to-show] default).
+
 As of 2020-09-03, the smallest set of data at the finest resolution is to request 1-second bars over a duration of 30
  seconds.
 
@@ -257,6 +260,8 @@ Request message to receive streaming @racket[market-data-rsp]s. As an example,
 			 [security-type 'stk]
 			 [exchange "SMART"]))
 ]
+
+will subscribe to (at least) bid/ask price and size updates.
 
 You will need to track the relationship between your request-id and your parameters as the returned @racket[market-data-rsp]s
  will not have the symbol, security-type, etc. information.
@@ -532,8 +537,10 @@ Commission reports are sent along with executions when calls are made to @racket
  (security-ids hash?)
  (agg-group integer?)
  (underlying-symbol string?)
- (underlying-security-type (or/c 'stk 'opt 'fut 'cash 'bond 'cfd 'fop 'war 'iopt 'fwd 'bag
-				 'ind 'bill 'fund 'fixed 'slb 'news 'cmdty 'bsk 'icu 'ics #f))
+ (underlying-security-type (or/c 'stk 'opt 'fut 'cash 'bond 'cfd
+                                 'fop 'war 'iopt 'fwd 'bag
+				 'ind 'bill 'fund 'fixed 'slb 'news
+				 'cmdty 'bsk 'icu 'ics #f))
  (market-rule-ids (listof string?))
  (real-expiry (or/c date? #f)))]{
 

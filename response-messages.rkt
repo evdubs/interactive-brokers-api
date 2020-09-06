@@ -248,7 +248,20 @@
      (dont-use-auto-price-for-hedge boolean?)
      (is-oms-container boolean?)
      (discretionary-up-to-limit-price boolean?)
-     (use-price-management-algo boolean?))])
+     (use-price-management-algo boolean?))]
+  [struct order-status-rsp
+    ((order-id integer?)
+     (status (or/c 'pending-submit 'pending-cancel 'pre-submitted 'submitted
+                   'api-cancelled 'cancelled 'filled 'inactive))
+     (filled rational?)
+     (remaining rational?)
+     (average-fill-price rational?)
+     (perm-id integer?)
+     (parent-id integer?)
+     (last-fill-price rational?)
+     (client-id integer?)
+     (why-held string?)
+     (market-cap-price rational?))])
  parse-msg)
 
 (struct commission-report-rsp
@@ -499,6 +512,20 @@
    use-price-management-algo)
   #:transparent)
 
+(struct order-status-rsp
+  (order-id
+   status
+   filled
+   remaining
+   average-fill-price
+   perm-id
+   parent-id
+   last-fill-price
+   client-id
+   why-held
+   market-cap-price)
+  #:transparent)
+
 ; ensure string->number conversions try to exactly represent the provided decimal
 (read-decimal-as-inexact #f)
 
@@ -513,20 +540,44 @@
                    market-data-rsp?
                    moment?
                    next-valid-id-rsp?
-                   open-order-rsp?))
+                   open-order-rsp?
+                   order-status-rsp?))
   (match (string-split (bytes->string/utf-8 str) "\0")
-    ; tick-price
+    ; tick price
     [(list-rest "1" "6" request-id type value details)
      (market-data-rsp
       (string->number request-id)
       (hash-ref tick-type-hash (string->number type))
       (string->number value))]
-    ; tick-size
+    ; tick size
     [(list "2" "6" request-id type value)
      (market-data-rsp
       (string->number request-id)
       (hash-ref tick-type-hash (string->number type))
       (string->number value))]
+    ; order status
+    [(list "3" order-id status filled remaining average-fill-price perm-id parent-id
+           last-fill-price client-id why-held market-cap-price)
+     (order-status-rsp
+      (string->number order-id)
+      (match status
+        ["PendingSubmit" 'pending-submit]
+        ["PendingCancel" 'pending-cancel]
+        ["PreSubmitted" 'pre-submitted]
+        ["Submitted" 'submitted]
+        ["ApiCancelled" 'api-cancelled]
+        ["Cancelled" 'cancelled]
+        ["Filled" 'filled]
+        ["Inactive" 'inactive])
+      (string->number filled)
+      (string->number remaining)
+      (string->number average-fill-price)
+      (string->number perm-id)
+      (string->number parent-id)
+      (string->number last-fill-price)
+      (string->number client-id)
+      why-held
+      (string->number market-cap-price))]
     ; generic error message
     ; ignoring error responses with version < 2
     [(list "4" "2" id error-code message) (err-rsp (string->number id) (string->number error-code) message)]

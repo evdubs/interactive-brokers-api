@@ -61,6 +61,7 @@ This object is responsible for establishing a connection, sending messages, and 
 		 [handle-market-data-rsp (-> market-data-rsp? any) (λ (md) void)]
 		 [handle-next-valid-id-rsp (-> next-valid-id-rsp? any) (λ (nvi) void)]
 		 [handle-open-order-rsp (-> open-order-rsp? any) (λ (oo) void)]
+		 [handle-order-status-rsp (-> order-status-rsp? any) (λ (os) void)]
 		 [handle-server-time-rsp (-> moment? any) (λ (st) void)]
 		 [hostname string? "127.0.0.1"]
 		 [port-no port-number? 7497]
@@ -786,11 +787,27 @@ This response is largely just telling you what you already provided to @racket[p
 
 }
 
+@defstruct[order-status-rsp
+((order-id integer?)
+ (status (or/c 'pending-submit 'pending-cancel 'pre-submitted 'submitted
+	       'api-cancelled 'cancelled 'filled 'inactive))
+ (filled rational?)
+ (remaining rational?)
+ (average-fill-price rational?)
+ (perm-id integer?)
+ (parent-id integer?)
+ (last-fill-price rational?)
+ (client-id integer?)
+ (why-held string?)
+ (market-cap-price rational?))]{
+
+This response gives a useful summary of the status of an order as well as the amount filled and amount remaining.
+
+}
+
 @section{Base Structs}
 
 @defmodule[interactive-brokers-api/base-structs]
-
-This struct is returned as part of a historical data request.
 
 @defstruct[bar
 ((moment moment?)
@@ -800,9 +817,11 @@ This struct is returned as part of a historical data request.
  (close rational?)
  (volume integer?)
  (weighted-average-price rational?)
- (count integer?))]
+ (count integer?))]{
 
-These structs are used for placing complex orders. You must @racket[require] the module to use them.
+This struct is returned as part of a @racket[historical-data-rsp].
+
+}
 
 @defstruct[combo-leg
 ((contract-id integer?)
@@ -814,8 +833,9 @@ These structs are used for placing complex orders. You must @racket[require] the
  (designated-location string?)
  (exempt-code integer?))]{
 
-Use @racket[combo-leg] when you want to place a spread. This is commonly done for options and will work for many strategies. Note
- that you can only provide @racket[contract-id], which you can retrieve from @racket[contract-details-req%].
+Use @racket[combo-leg] within @racket[place-order-req%] when you want to place a spread. This is commonly done for options
+ and will work for many strategies. Note that you can only provide @racket[contract-id], which you can retrieve from
+ @racket[contract-details-req%].
 
 }
 
@@ -835,7 +855,8 @@ Use @racket[combo-leg] when you want to place a spread. This is commonly done fo
 		      'bsk 'icu 'ics #f))
  (symbol (or/c string? #f)))]{
 
-Use @racket[condition] when you want your order to either take effect or be canceled only when certain conditions are met.
+Use @racket[condition] within @racket[place-order-req%] when you want your order to either take effect or be canceled only
+ when certain conditions are met.
 
 @itemlist[
 @item{@racket['price] conditions require: @racket[boolean-operator], @racket[comparator], @racket[value], @racket[contract-id],

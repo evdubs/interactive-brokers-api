@@ -830,9 +830,9 @@
                           (string-append
                            (match (condition-type c) ['price "1"] ['time "3"] ['margin "4"] ['execution "5"] ['volume "6"] ['percent-change "7"]) "\0"
                            (match (condition-boolean-operator c) ['and "a"] ['or "o"]) "\0"
-                           (match (condition-comparator c) ['less-than "0"] ['greater-than "1"]) "\0"
                            (match (condition-type c)
                              ['price (string-append
+                                      (match (condition-comparator c) ['less-than "0"] ['greater-than "1"]) "\0"
                                       (real->decimal-string (condition-value c) 2) "\0"
                                       (number->string (condition-contract-id c)) "\0"
                                       (condition-exchange c) "\0"
@@ -845,7 +845,25 @@
                                         ['last-of-bid/ask "7"]
                                         ['mid-point "8"]) "\0")]
                              ['time (string-append
-                                     (~t (condition-value c) "yyyy-MM-dd HH:mm:ss") "\0")])))
+                                     (match (condition-comparator c) ['less-than "0"] ['greater-than "1"]) "\0"
+                                     (~t (condition-value c) "yyyyMMdd HH:mm:ss") "\0")]
+                             ['margin (string-append
+                                       (match (condition-comparator c) ['less-than "0"] ['greater-than "1"]) "\0"
+                                       (number->string (condition-value c)) "\0")]
+                             ['execution (string-append
+                                          (string-upcase (symbol->string (condition-security-type c))) "\0"
+                                          (condition-exchange c) "\0"
+                                          (condition-symbol c) "\0")]
+                             ['volume (string-append
+                                       (match (condition-comparator c) ['less-than "0"] ['greater-than "1"]) "\0"
+                                       (number->string (condition-value c)) "\0"
+                                       (number->string (condition-contract-id c)) "\0"
+                                       (condition-exchange c) "\0")]
+                             ['percent-change (string-append
+                                               (match (condition-comparator c) ['less-than "0"] ['greater-than "1"]) "\0"
+                                               (real->decimal-string (condition-value c) 2) "\0"
+                                               (number->string (condition-contract-id c)) "\0"
+                                               (condition-exchange c) "\0")])))
                         conditions))
             (if conditions-ignore-rth "1" "0") "\0"
             (if conditions-cancel-order "1" "0") "\0")

@@ -823,15 +823,37 @@ Use @racket[combo-leg] when you want to place a spread. This is commonly done fo
 ((type (or/c 'price 'time 'margin
              'execution 'volume 'percent-change))
  (boolean-operator (or/c 'and 'or))
- (comparator (or/c 'less-than 'greater-than))
- (value (or/c rational? moment?))
+ (comparator (or/c 'less-than 'greater-than #f))
+ (value (or/c rational? moment? #f))
  (contract-id (or/c integer? #f))
  (exchange (or/c string? #f))
- (trigger-method (or/c 'default 'double-bid/ask 'last
-		       'double-last 'bid/ask 'last-of-bid/ask
-		       'mid-point #f)))]{
+ (trigger-method (or/c 'default 'double-bid/ask 'last 'double-last
+                       'bid/ask 'last-of-bid/ask 'mid-point #f))
+ (security-type (or/c 'stk 'opt 'fut 'cash 'bond 'cfd
+                      'fop 'war 'iopt 'fwd 'bag 'ind
+		      'bill 'fund 'fixed 'slb 'news 'cmdty
+		      'bsk 'icu 'ics #f))
+ (symbol (or/c string? #f)))]{
 
-Use @racket[condition] when you want your order to either take effect or be canceled only when certain conditions are met. Currently,
- only @racket['price] and @racket['time] do anything useful within the client.
+Use @racket[condition] when you want your order to either take effect or be canceled only when certain conditions are met.
+
+@itemlist[
+@item{@racket['price] conditions require: @racket[boolean-operator], @racket[comparator], @racket[value], @racket[contract-id],
+ @racket[exchange], and @racket[trigger-method].}
+
+@item{@racket['time] conditions require: @racket[boolean-operator], @racket[comparator], and @racket[value].}
+
+@item{@racket['margin] conditions require: @racket[boolean-operator], @racket[comparator], and @racket[value].}
+
+@item{@racket['execution] conditions require: @racket[boolean-operator], @racket[exchange], @racket[security-type], and @racket[symbol].}
+
+@item{@racket['volume] conditions require: @racket[boolean-operator], @racket[comparator], @racket[value], @racket[contract-id],
+ and @racket[exchange].}
+
+@item{@racket['percent-change] conditions require: @racket[boolean-operator], @racket[comparator], @racket[value], @racket[contract-id],
+ and @racket[exchange].}
+]
+
+Where fields are not required for a given condition type, they are not sent to the server and are effectively ignored.
 
 }

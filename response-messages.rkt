@@ -557,7 +557,17 @@
                                   (+ 24 solicited-index)
                                   (+ 19 solicited-index))]
             [conditions-size (string->number (list-ref details conditions-index))]
-            [adjusted-order-type-index (+ 1 conditions-index (if (< 0 conditions-size) 2 0) conditions-size)])
+            [conditions-offsets (foldl (λ (i res)
+                                         (append res (list (match (list-ref details (last res))
+                                                             ["1" (+ 7 (last res))]
+                                                             ["3" (+ 4 (last res))]
+                                                             ["4" (+ 4 (last res))]
+                                                             ["5" (+ 5 (last res))]
+                                                             ["6" (+ 6 (last res))]
+                                                             ["7" (+ 6 (last res))]))))
+                                       (list (+ 1 conditions-index))
+                                       (range conditions-size))]
+            [adjusted-order-type-index (+ (last conditions-offsets) (if (< 0 conditions-size) 2 0))])
        (open-order-rsp
         (string->number (list-ref details 0)) ; order-id
         (string->number (list-ref details 1)) ; contract-id
@@ -750,30 +760,78 @@
         (if (equal? "PEG BENCH" (list-ref details 14))
             (list-ref details (+ 23 solicited-index)) "") ; reference-exchange-id
         (map (λ (i)
-               (match (list-ref details (+ 1 conditions-index))
+               (match (list-ref details i)
                  ["1" (condition
                        'price ; type
                        ; we have a default case below because we have received "n" before, which shouldn't be possible,
                        ; but the Java library treats everything not "a" as the 'or case
-                       (match (list-ref details (+ 2 conditions-index)) ["a" 'and] ["o" 'or] [_ 'or]) ; boolean-operator
-                       (match (list-ref details (+ 3 conditions-index)) ["0" 'less-than] ["1" 'greater-than]) ; comparator
-                       (string->number (list-ref details (+ 4 conditions-index))) ; price
-                       (string->number (list-ref details (+ 5 conditions-index))) ; contract-id
-                       (list-ref details (+ 6 conditions-index)) ; exchange
-                       (match (list-ref details (+ 7 conditions-index))
+                       (match (list-ref details (+ 1 i)) ["a" 'and] ["o" 'or] [_ 'or]) ; boolean-operator
+                       (match (list-ref details (+ 2 i)) ["0" 'less-than] ["1" 'greater-than]) ; comparator
+                       (string->number (list-ref details (+ 3 i))) ; price
+                       (string->number (list-ref details (+ 4 i))) ; contract-id
+                       (list-ref details (+ 5 i)) ; exchange
+                       (match (list-ref details (+ 6 i))
                          ["0" 'default]
                          ["1" 'double-bid/ask]
                          ["2" 'last]
                          ["3" 'double-last]
                          ["4" 'bid/ask]
                          ["7" 'last-of-bid/ask]
-                         ["8" 'mid-point]))] ; trigger-method
+                         ["8" 'mid-point]) ; trigger-method
+                       #f ; security-type
+                       #f)] ; symbol
                  ["3" (condition
                        'time ; type
-                       (match (list-ref details (+ 2 conditions-index)) ["a" 'and] ["o" 'or]) ; boolean-operator
-                       (match (list-ref details (+ 3 conditions-index)) ["0" 'less-than] ["1" 'greater-than]) ; comparator
-                       (parse-moment (list-ref details (+ 4 conditions-index)) "yyyyMMdd HH:mm:ss"))])) ; time
-             (range conditions-size)) ; conditions
+                       (match (list-ref details (+ 1 i)) ["a" 'and] ["o" 'or]) ; boolean-operator
+                       (match (list-ref details (+ 2 i)) ["0" 'less-than] ["1" 'greater-than]) ; comparator
+                       (parse-moment (second (regexp-match #px"([0-9]{8} [0-9]{2}:[0-9]{2}:[0-9]{2}) [A-Z]+"
+                                                           (list-ref details (+ 3 i)))) "yyyyMMdd HH:mm:ss") ; time
+                       #f ; contract-id
+                       #f ; exchange
+                       #f ; trigger-method
+                       #f ; security-type
+                       #f)] ; symbol
+                 ["4" (condition
+                       'margin ; type
+                       (match (list-ref details (+ 1 i)) ["a" 'and] ["o" 'or]) ; boolean-operator
+                       (match (list-ref details (+ 2 i)) ["0" 'less-than] ["1" 'greater-than]) ; comparator
+                       (string->number (list-ref details (+ 3 i))) ; margin-percent
+                       #f ; contract-id
+                       #f ; exchange
+                       #f ; trigger-method
+                       #f ; security-type
+                       #f)] ; symbol
+                 ["5" (condition
+                       'execution
+                       (match (list-ref details (+ 1 i)) ["a" 'and] ["o" 'or]) ; boolean-operator
+                       #f ; comparator
+                       #f ; value
+                       #f ; contract-id
+                       (list-ref details (+ 3 i)) ; exchange
+                       #f ; trigger-method
+                       (string->symbol (string-downcase (list-ref details (+ 2 i)))) ; security-type
+                       (list-ref details (+ 4 i)))] ; symbol
+                 ["6" (condition
+                       'volume ; type
+                       (match (list-ref details (+ 1 i)) ["a" 'and] ["o" 'or]) ; boolean-operator
+                       (match (list-ref details (+ 2 i)) ["0" 'less-than] ["1" 'greater-than]) ; comparator
+                       (string->number (list-ref details (+ 3 i))) ; volume
+                       (string->number (list-ref details (+ 4 i))) ; contract-id
+                       (list-ref details (+ 5 i)) ; exchange
+                       #f ; trigger-method
+                       #f ; security-type
+                       #f)] ; symbol
+                 ["7"(condition
+                       'percent-change ; type
+                       (match (list-ref details (+ 1 i)) ["a" 'and] ["o" 'or]) ; boolean-operator
+                       (match (list-ref details (+ 2 i)) ["0" 'less-than] ["1" 'greater-than]) ; comparator
+                       (string->number (list-ref details (+ 3 i))) ; percent-change
+                       (string->number (list-ref details (+ 4 i))) ; contract-id
+                       (list-ref details (+ 5 i)) ; exchange
+                       #f ; trigger-method
+                       #f ; security-type
+                       #f)])) ; symbol
+             (drop-right conditions-offsets 1)) ; conditions
         (if (equal? "None" (list-ref details adjusted-order-type-index))
             #f (string->symbol (string-downcase (string-replace (list-ref details adjusted-order-type-index) "_" "-")))) ; adjusted-order-type
         (if (equal? "1.7976931348623157E308" (list-ref details (+ 1 adjusted-order-type-index)))

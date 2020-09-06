@@ -27,11 +27,14 @@
   [struct condition
     ((type (or/c 'price 'time 'margin 'execution 'volume 'percent-change))
      (boolean-operator (or/c 'and 'or))
-     (comparator (or/c 'less-than 'greater-than))
-     (value (or/c rational? moment?))
+     (comparator (or/c 'less-than 'greater-than #f))
+     (value (or/c rational? moment? #f))
      (contract-id (or/c integer? #f))
      (exchange (or/c string? #f))
-     (trigger-method (or/c 'default 'double-bid/ask 'last 'double-last 'bid/ask 'last-of-bid/ask 'mid-point #f)))]
+     (trigger-method (or/c 'default 'double-bid/ask 'last 'double-last 'bid/ask 'last-of-bid/ask 'mid-point #f))
+     (security-type (or/c 'stk 'opt 'fut 'cash 'bond 'cfd 'fop 'war 'iopt 'fwd 'bag
+                          'ind 'bill 'fund 'fixed 'slb 'news 'cmdty 'bsk 'icu 'ics #f))
+     (symbol (or/c string? #f)))]
   [tick-type-hash (hash/c integer? symbol?)]))
 
 (struct bar
@@ -63,7 +66,9 @@
    value
    contract-id
    exchange
-   trigger-method)
+   trigger-method
+   security-type
+   symbol)
   #:transparent)
 
 ; defined as a list of lists in case we need a map of symbol -> int in the future

@@ -100,7 +100,7 @@
                          (< 0 (length msg))
                          (foldl (λ (str res) (and res (regexp-match #rx"[A-Z]+[0-9]+" str))) #t msg))
                     (handle-accounts-rsp msg)]
-                   [else (writeln msg)]))
+                   [else (display "No handler defined for message: ") (writeln msg)]))
                (channel-try-get req-rsp-channel))))
 
       ; EClient.sendV100APIHeader

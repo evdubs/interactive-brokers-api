@@ -8,7 +8,8 @@
          racket/string
          "base-structs.rkt")
 
-(provide cancel-historical-data-req%
+(provide account-data-req%
+         cancel-historical-data-req%
          cancel-market-data-req%
          contract-details-req%
          executions-req%
@@ -33,6 +34,25 @@
   ; strings are then all appended together to form the message string.
   (interface ()
     [->string (->m string?)]))
+
+(define/contract account-data-req%
+  (class/c (inherit-field [msg-id integer?]
+                          [version integer?])
+           (init-field [subscribe boolean?]
+                       [account-code string?]))
+  (class* ibkr-msg%
+    (req-msg<%>)
+    (super-new [msg-id 6]
+               [version 2])
+    (inherit-field msg-id version)
+    (init-field [subscribe #f]
+                [account-code ""])
+    (define/public (->string)
+      (string-append
+       (number->string msg-id) "\0"
+       (number->string version) "\0"
+       (if subscribe "1" "0") "\0"
+       account-code "\0"))))
 
 (define/contract cancel-historical-data-req%
   (class/c (inherit-field [msg-id integer?]

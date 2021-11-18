@@ -45,6 +45,10 @@ The general code flow to establish a (default) connection and send a message is 
  (send ibkr send-msg (new executions-req%))
 )
 
+@(require (for-label "base-structs.rkt"
+                     "request-messages.rkt"
+                     "response-messages.rkt"))
+
 @defclass[ibkr-session% object% ()]{
 
 This object is responsible for establishing a connection, sending messages, and registering callbacks to receive messages. One
@@ -52,6 +56,7 @@ This object is responsible for establishing a connection, sending messages, and 
  seen that attempting to send multiple requests without waiting for a response forced a disconnect.
 
 @defconstructor[([client-id integer? 0]
+                 [handle-account-value-rsp (-> account-value-rsp? any) (λ (av) void)]
 		 [handle-accounts-rsp (-> (listof string?) any) (λ (a) void)]
 		 [handle-commission-report-rsp (-> commission-report-rsp? any) (λ (cr) void)]
 		 [handle-contract-details-rsp (-> contract-details-rsp? any) (λ (cd) void)]
@@ -62,6 +67,7 @@ This object is responsible for establishing a connection, sending messages, and 
 		 [handle-next-valid-id-rsp (-> next-valid-id-rsp? any) (λ (nvi) void)]
 		 [handle-open-order-rsp (-> open-order-rsp? any) (λ (oo) void)]
 		 [handle-order-status-rsp (-> order-status-rsp? any) (λ (os) void)]
+		 [handle-portfolio-value-rsp (-> portfolio-value-rsp? any) (λ (pv) void)]
 		 [handle-server-time-rsp (-> moment? any) (λ (st) void)]
 		 [hostname string? "127.0.0.1"]
 		 [port-no port-number? 7497]
@@ -116,9 +122,28 @@ This is the base class for all request messages. There is no need for a client o
 
 }
 
-@subsection{Contract Details}
+@subsection{Account Data}
 
-@(require (for-label "request-messages.rkt"))
+@defclass[account-data-req% ibkr-msg% (req-msg<%>)]{
+
+Request message to receive @racket[account-value-rsp]s and @racket[portfolio-value-rsp]s. Each component of an account (e.g Net
+ Liquidation, Account Code, Cash Balance, etc.) will be received in an individual response; there is no large structure or map
+ that will be returned that has all of the account components. Likewise for the components of a portfolio. If you wish to aggregate
+ the account and portfolio components, you will need to do that in your own application code.
+
+@racketblock[
+(send ibkr send-msg (new account-data-req% [subscribe #t]))
+]
+
+By default @racket[subscribe] is @racket[#f]. In my testing, the only way I could retrieve data is by setting @racket[subscribe] to
+ @racket[#t], so this is probably a bad default.
+
+@defconstructor[([subscribe boolean? #f]
+                 [account-code string? ""])]
+
+}
+
+@subsection{Contract Details}
 
 @defclass[contract-details-req% ibkr-msg% (req-msg<%>)]{
 
@@ -489,6 +514,17 @@ Please note that the fields @racket[action], @racket[order-type], @racket[time-i
 
 @defmodule[interactive-brokers-api/response-messages]
 
+@defstruct[account-value-rsp
+((key string?)
+ (value string?)
+ (currency string?)
+ (account-name string?))]{
+
+As with the Java API, @racket[value] here is often numeric, but we leave it as a string because this field is not guaranteed
+ to be numeric.
+
+}
+
 @defstruct[commission-report-rsp
 ((execution-id string?)
  (commission rational?)
@@ -802,6 +838,33 @@ This response is largely just telling you what you already provided to @racket[p
  (market-cap-price rational?))]{
 
 This response gives a useful summary of the status of an order as well as the amount filled and amount remaining.
+
+}
+
+@defstruct[portfolio-value-rsp
+((contract-id integer?)
+ (symbol string?)
+ (security-type (or/c 'stk 'opt 'fut 'cash 'bond 'cfd
+		      'fop 'war 'iopt 'fwd 'bag 'ind
+		      'bill 'fund 'fixed 'slb 'news 'cmdty
+		      'bsk 'icu 'ics #f))
+ (expiry (or/c date? #f))
+ (strike (or/c rational? #f))
+ (right (or/c 'call 'put #f))
+ (multiplier (or/c rational? #f))
+ (exchange string?)
+ (currency string?)
+ (local-symbol string?)
+ (trading-class string?)
+ (position rational?)
+ (market-price rational?)
+ (market-value rational?)
+ (average-cost rational?)
+ (unrealized-pnl rational?)
+ (realized-pnl rational?)
+ (account-name string?))]{
+
+These responses are returned alongside @racket[account-value-rsp]s when @racket[account-data-req%] messages are sent.
 
 }
 

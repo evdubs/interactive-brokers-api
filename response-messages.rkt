@@ -9,6 +9,11 @@
 
 (provide
  (contract-out
+  [struct account-value-rsp
+    ((key string?)
+     (value string?)
+     (currency string?)
+     (account-name string?))]
   [struct commission-report-rsp
     ((execution-id string?)
      (commission rational?)
@@ -261,8 +266,35 @@
      (last-fill-price rational?)
      (client-id integer?)
      (why-held string?)
-     (market-cap-price rational?))])
+     (market-cap-price rational?))]
+  [struct portfolio-value-rsp
+    ((contract-id integer?)
+     (symbol string?)
+     (security-type (or/c 'stk 'opt 'fut 'cash 'bond 'cfd 'fop 'war 'iopt 'fwd 'bag
+                          'ind 'bill 'fund 'fixed 'slb 'news 'cmdty 'bsk 'icu 'ics #f))
+     (expiry (or/c date? #f))
+     (strike (or/c rational? #f))
+     (right (or/c 'call 'put #f))
+     (multiplier (or/c rational? #f))
+     (exchange string?)
+     (currency string?)
+     (local-symbol string?)
+     (trading-class string?)
+     (position rational?)
+     (market-price rational?)
+     (market-value rational?)
+     (average-cost rational?)
+     (unrealized-pnl rational?)
+     (realized-pnl rational?)
+     (account-name string?))])
  parse-msg)
+
+(struct account-value-rsp
+  (key
+   value
+   currency
+   account-name)
+  #:transparent)
 
 (struct commission-report-rsp
   (execution-id
@@ -526,12 +558,34 @@
    market-cap-price)
   #:transparent)
 
+(struct portfolio-value-rsp
+  (contract-id
+   symbol
+   security-type
+   expiry
+   strike
+   right
+   multiplier
+   exchange
+   currency
+   local-symbol
+   trading-class
+   position
+   market-price
+   market-value
+   average-cost
+   unrealized-pnl
+   realized-pnl
+   account-name)
+  #:transparent)
+
 ; ensure string->number conversions try to exactly represent the provided decimal
 (read-decimal-as-inexact #f)
 
 ; convert a byte string message received over the wire to the appropriate structure
 (define/contract (parse-msg str)
-  (-> bytes? (or/c commission-report-rsp?
+  (-> bytes? (or/c account-value-rsp?
+                   commission-report-rsp?
                    contract-details-rsp?
                    err-rsp?
                    execution-rsp?
@@ -541,7 +595,8 @@
                    moment?
                    next-valid-id-rsp?
                    open-order-rsp?
-                   order-status-rsp?))
+                   order-status-rsp?
+                   portfolio-value-rsp?))
   (match (string-split (bytes->string/utf-8 str) "\0")
     ; tick price
     [(list-rest "1" "6" request-id type value details)
@@ -907,6 +962,33 @@
         (if (equal? "1" (list-ref details (+ 14 adjusted-order-type-index))) #t #f) ; discretionary-up-to-limit-price
         (if (equal? "1" (list-ref details (+ 15 adjusted-order-type-index))) #t #f) ; use-price-management-algo
         ))]
+    ; account value
+    [(list "6" version key value currency account-name) (account-value-rsp key value currency account-name)]
+    ; portfolio value
+    [(list-rest "7" version details) (portfolio-value-rsp
+                                      (string->number (list-ref details 0)) ; contract-id
+                                      (list-ref details 1) ; symbol
+                                      (string->symbol (string-downcase (list-ref details 2))) ; security-type
+                                      (if (equal? "" (list-ref details 3))
+                                          #f (parse-date (list-ref details 3) "yyyyMMdd")) ; expiry
+                                      (string->number (list-ref details 4)) ; strike
+                                      (match (list-ref details 5)
+                                        ["C" 'call]
+                                        ["P" 'put]
+                                        [_ #f]) ; right
+                                      (string->number (list-ref details 6)) ; multiplier
+                                      (list-ref details 7) ; exchange
+                                      (list-ref details 8) ; currency
+                                      (list-ref details 9) ; local-symbol
+                                      (list-ref details 10) ; trading-class
+                                      (string->number (list-ref details 11)) ; position
+                                      (string->number (list-ref details 12)) ; market-price
+                                      (string->number (list-ref details 13)) ; market-value
+                                      (string->number (list-ref details 14)) ; average-cost
+                                      (string->number (list-ref details 15)) ; unrealized-pnl
+                                      (string->number (list-ref details 16)) ; realized-pnl
+                                      (list-ref details 17) ; account-name
+                                      )]
     ; next valid id
     [(list "9" version order-id) (next-valid-id-rsp (string->number order-id))]
     ; contract details

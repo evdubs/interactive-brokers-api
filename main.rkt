@@ -29,6 +29,7 @@
 
 (define/contract ibkr-session%
   (class/c (init-field [client-id integer?]
+                       [handle-account-value-rsp (-> account-value-rsp? any)]
                        [handle-accounts-rsp (-> (listof string?) any)]
                        [handle-commission-report-rsp (-> commission-report-rsp? any)]
                        [handle-contract-details-rsp (-> contract-details-rsp? any)]
@@ -39,6 +40,7 @@
                        [handle-next-valid-id-rsp (-> next-valid-id-rsp? any)]
                        [handle-open-order-rsp (-> open-order-rsp? any)]
                        [handle-order-status-rsp (-> order-status-rsp? any)]
+                       [handle-portfolio-value-rsp (-> portfolio-value-rsp? any)]
                        [handle-server-time-rsp (-> moment? any)]
                        [hostname string?]
                        [port-no port-number?]
@@ -48,6 +50,7 @@
   (class object%
     (super-new)
     (init-field [client-id 0]
+                [handle-account-value-rsp (λ (av) void)]
                 [handle-accounts-rsp (λ (a) void)]
                 [handle-commission-report-rsp (λ (cr) void)]
                 [handle-contract-details-rsp (λ (cd) void)]
@@ -58,6 +61,7 @@
                 [handle-next-valid-id-rsp (λ (nvi) void)]
                 [handle-open-order-rsp (λ (oo) void)]
                 [handle-order-status-rsp (λ (os) void)]
+                [handle-portfolio-value-rsp (λ (pv) void)]
                 [handle-server-time-rsp (λ (st) void)]
                 [hostname "127.0.0.1"]
                 [port-no 7497]
@@ -84,6 +88,7 @@
                       [_ (cond [write-messages (display "Received: ") (writeln (string-split (bytes->string/utf-8 str) "\0"))])]
                       [msg (parse-msg str)])
                  (cond
+                   [(account-value-rsp? msg) (handle-account-value-rsp msg)]
                    [(commission-report-rsp? msg) (handle-commission-report-rsp msg)]
                    [(contract-details-rsp? msg) (handle-contract-details-rsp msg)]
                    [(moment? msg) (handle-server-time-rsp msg)]
@@ -94,6 +99,7 @@
                    [(next-valid-id-rsp? msg) (handle-next-valid-id-rsp msg)]
                    [(open-order-rsp? msg) (handle-open-order-rsp msg)]
                    [(order-status-rsp? msg) (handle-order-status-rsp msg)]
+                   [(portfolio-value-rsp? msg) (handle-portfolio-value-rsp msg)]
                    ; we might want to just create an accounts structure that we can typecheck for
                    ; rather than have to regex match what we think account strings look like
                    [(and (list? msg)

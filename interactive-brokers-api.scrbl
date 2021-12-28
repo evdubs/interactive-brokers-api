@@ -129,14 +129,18 @@ This is the base class for all request messages. There is no need for a client o
 Request message to receive @racket[account-value-rsp]s and @racket[portfolio-value-rsp]s. Each component of an account (e.g Net
  Liquidation, Account Code, Cash Balance, etc.) will be received in an individual response; there is no large structure or map
  that will be returned that has all of the account components. Likewise for the components of a portfolio. If you wish to aggregate
- the account and portfolio components, you will need to do that in your own application code.
+ the account and portfolio components, you will need to do that in your own application code. To receive account data, do:
 
 @racketblock[
 (send ibkr send-msg (new account-data-req% [subscribe #t]))
 ]
 
-By default @racket[subscribe] is @racket[#f]. In my testing, the only way I could retrieve data is by setting @racket[subscribe] to
- @racket[#t], so this is probably a bad default.
+By default @racket[subscribe] is @racket[#f]. To actually subscribe to data, you will need to set this value to @racket[#t]. When
+ you are finished consuming account data, you can do the following to unsubscribe:
+
+@racketblock[
+(send ibkr send-msg (new account-data-req% [subscribe #f]))
+]
 
 @defconstructor[([subscribe boolean? #f]
                  [account-code string? ""])]

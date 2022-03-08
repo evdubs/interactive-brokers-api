@@ -120,5 +120,4 @@
 
     (define/public (send-msg msg)
       (cond [write-messages (display "Sending: ") (writeln (string-split (send msg ->string) "\0"))])
-      (write-sized-str (send msg ->string) ibkr-out)
-      (channel-put req-rsp-channel #f))))
+      (write-sized-str (send msg ->string) ibkr-out))))

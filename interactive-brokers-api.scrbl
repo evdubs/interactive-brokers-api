@@ -331,6 +331,28 @@ Request message to stop receiving @racket[market-data-rsp]s.
 
 }
 
+@defclass[market-data-type-req% ibkr-msg% (req-msg<%>)]{
+
+Request message to change the type of market data received using calls to @racket[market-data-req%].
+As an example,
+
+@racketblock[
+(send ibkr send-msg (new market-data-type-req%
+                         [market-data-type 'delayed-frozen]))
+]
+
+will allow subsequent @racket[market-data-req%] calls to first retrieve real-time market data if available;
+if not, delayed market data will be retrieved; if delayed data is unavailable, delayed frozen
+(last available market data) data will be retrieved.
+
+Using @racket[market-data-type-req%] is useful when subscribing to market data using a demo account where
+real-time data may not be supported.
+
+@defconstructor[([market-data-type (or/c 'real-time 'frozen 'delayed 'delayed-frozen)
+                                   'real-time])]{}
+
+}
+
 @subsection{Orders}
 
 @defclass[open-orders-req% ibkr-msg% (req-msg<%>)]{

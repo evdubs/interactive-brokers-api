@@ -16,6 +16,7 @@
          ibkr-msg%
          historical-data-req%
          market-data-req%
+         market-data-type-req%
          open-orders-req%
          place-order-req%
          req-msg<%>
@@ -381,6 +382,26 @@
        (if snapshot "1" "0") "\0"
        (if regulatory-snapshot "1" "0") "\0"
        market-data-options "\0"))))
+
+(define/contract market-data-type-req%
+  (class/c (inherit-field [msg-id integer?]
+                          [version integer?])
+           (init-field [market-data-type (or/c 'real-time 'frozen 'delayed 'delayed-frozen)]))
+  (class* ibkr-msg%
+    (req-msg<%>)
+    (super-new [msg-id 59]
+               [version 1])
+    (inherit-field msg-id version)
+    (init-field [market-data-type 'real-time])
+    (define/public (->string)
+      (string-append
+       (number->string msg-id) "\0"
+       (number->string version) "\0"
+       (match market-data-type
+         ['real-time "1"]
+         ['frozen "2"]
+         ['delayed "3"]
+         ['delayed-frozen "4"]) "\0"))))
 
 (define/contract open-orders-req%
   (class/c (inherit-field [msg-id integer?]

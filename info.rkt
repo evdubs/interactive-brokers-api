@@ -12,3 +12,5 @@
                          "scribble-lib"))
 
 (define scribblings '(("interactive-brokers-api.scrbl" ())))
+
+(define license 'Apache-2.0)

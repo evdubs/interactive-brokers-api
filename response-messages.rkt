@@ -208,7 +208,7 @@
      (delta-neutral-underlying-delta (or/c rational? #f))
      (delta-neutral-underlying-price (or/c rational? #f))
      (algo-strategy string?)
-     (algo-strategy-params (listof string?))
+     (algo-strategy-params hash?)
      (solicited boolean?)
      (what-if boolean?)
      (status string?)
@@ -655,10 +655,10 @@
             [algo-strategy-index (if (equal? 0 delta-neutral-contract-indicator)
                                      (+ opt-out-smart-routing-index 5)
                                      (+ opt-out-smart-routing-index 9))]
-            [algo-params-size (if (equal? "" (list-ref details algo-strategy-index))
+            [algo-strategy-params-size (if (equal? "" (list-ref details algo-strategy-index))
                                   0
                                   (string->number (list-ref details (+ 1 algo-strategy-index))))]
-            [solicited-index (+ 1 algo-strategy-index (if (< 0 algo-params-size) 1 0) (* 2 algo-params-size))]
+            [solicited-index (+ 1 algo-strategy-index (if (< 0 algo-strategy-params-size) 1 0) (* 2 algo-strategy-params-size))]
             [conditions-index (if (equal? "PEG BENCH" (list-ref details 14))
                                   (+ 24 solicited-index)
                                   (+ 19 solicited-index))]
@@ -823,7 +823,8 @@
         (if (equal? 0 delta-neutral-contract-indicator)
             #f (string->number (list-ref details (+ 7 opt-out-smart-routing-index)))) ; delta-neutral-underlying-price
         (list-ref details algo-strategy-index) ; algo-strategy
-        (list) ; algo-strategy-params
+        (apply hash (take (drop details (+ 2 algo-strategy-index))
+                          (* 2 algo-strategy-params-size))) ; algo-strategy-params
         (if (equal? "1" (list-ref details solicited-index)) #t #f) ; solicited
         (if (equal? "1" (list-ref details (+ 1 solicited-index))) #t #f) ; what-if
         (list-ref details (+ 2 solicited-index)) ; status

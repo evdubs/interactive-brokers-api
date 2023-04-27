@@ -515,6 +515,7 @@
                        [delta-neutral-delta (or/c rational? #f)]
                        [delta-neutral-price (or/c rational? #f)]
                        [algo-strategy string?]
+                       [algo-strategy-params hash?]
                        [algo-id string?]
                        [what-if boolean?]
                        [order-misc-options string?]
@@ -657,6 +658,7 @@
                 [delta-neutral-delta #f]
                 [delta-neutral-price #f]
                 [algo-strategy ""]
+                [algo-strategy-params (hash)]
                 [algo-id ""]
                 [what-if #f]
                 [order-misc-options ""]
@@ -845,11 +847,15 @@
             (real->decimal-string delta-neutral-price 2))
            "0")
        "\0"
-       ; there is additional logic with algo strategy that we are not sure of
-       ; so we send nothing for now
-       "" "\0"
-       ; related to algo strategy above, we send nothing for algo id
-       "" "\0"
+       algo-strategy "\0"
+       (if (equal? "" algo-strategy)
+           ""
+           (string-append
+            (number->string (hash-count algo-strategy-params)) "\0"
+            (apply string-append
+                   (hash-map algo-strategy-params
+                             (λ (k v) (string-append k "\0" v "\0"))))))
+       algo-id "\0"
        (if what-if "1" "0") "\0"
        order-misc-options "\0"
        (if solicited "1" "0") "\0"

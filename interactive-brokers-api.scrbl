@@ -486,6 +486,7 @@ Be sure to add a handler for @racket[next-valid-id-rsp] in @racket[ibkr-session%
 		 [delta-neutral-delta (or/c rational? #f) #f]
 		 [delta-neutral-price (or/c rational? #f) #f]
 		 [algo-strategy string? ""]
+		 [algo-strategy-params hash? (hash)]
 		 [algo-id string? ""]
 		 [what-if boolean? #f]
 		 [order-misc-options string? ""]
@@ -792,7 +793,7 @@ This response should be saved locally so that calls to @racket[place-order-req%]
  (delta-neutral-underlying-delta (or/c rational? #f))
  (delta-neutral-underlying-price (or/c rational? #f))
  (algo-strategy string?)
- (algo-strategy-params (listof string?))
+ (algo-strategy-params hash?)
  (solicited boolean?)
  (what-if boolean?)
  (status string?)

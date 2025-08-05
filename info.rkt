@@ -2,7 +2,7 @@
 
 (define collection "interactive-brokers-api")
 
-(define version "976.01.0")
+(define version "10.30.01")
 
 (define deps (list "base"
                    "binaryio"

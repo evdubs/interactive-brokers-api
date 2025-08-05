@@ -105,7 +105,8 @@
                        [local-symbol string?]
                        [trading-class string?]
                        [security-id-type (or/c 'cusip 'sedol 'isin 'ric #f)]
-                       [security-id string?]))
+                       [security-id string?]
+                       [issuer-id string?]))
   (class* ibkr-msg%
     (req-msg<%>)
     (super-new [msg-id 9]
@@ -126,7 +127,8 @@
                 [trading-class ""]
                 [include-expired ""]
                 [security-id-type #f]
-                [security-id ""])
+                [security-id ""]
+                [issuer-id ""])
     (define/public (->string)
       (string-append
        (number->string msg-id) "\0"
@@ -146,7 +148,8 @@
        trading-class "\0"
        include-expired "\0"
        (if (symbol? security-id-type) (string-upcase (symbol->string security-id-type)) "") "\0"
-       security-id "\0"))))
+       security-id "\0"
+       issuer-id "\0"))))
 
 (define/contract executions-req%
   (class/c (inherit-field [msg-id integer?]
@@ -180,7 +183,7 @@
        (number->string request-id) "\0"
        (number->string client-id) "\0"
        account "\0"
-       (if (moment? timestamp) (~t timestamp "yyyyMMdd-HH:mm:ss") "") "\0"
+       (if (moment? timestamp) (~t (adjust-timezone timestamp "UTC") "yyyyMMdd-HH:mm:ss") "") "\0"
        symbol "\0"
        (if (symbol? security-type) (string-upcase (symbol->string security-type)) "") "\0"
        exchange "\0"
@@ -259,7 +262,7 @@
        local-symbol "\0"
        trading-class "\0"
        (if include-expired "1" "0") "\0"
-       (~t end-moment "yyyyMMdd HH:mm:ss") "\0"
+       (~t (adjust-timezone end-moment "UTC") "yyyyMMdd-HH:mm:ss") "\0"
        (string-replace (symbol->string bar-size) "-" " ") "\0"
        (cond [(time-period? duration)
               (string-append (number->string (+ (* 60 60 (period-ref duration 'hours))
@@ -552,7 +555,22 @@
                        [dont-use-auto-price-for-hedge boolean?]
                        [is-oms-container boolean?]
                        [discretionary-up-to-limit-price boolean?]
-                       [use-price-management-algo boolean?]))
+                       [use-price-management-algo boolean?]
+                       [duration integer?]
+                       [post-to-ats integer?]
+                       [auto-cancel-parent boolean?]
+                       [advanced-error-override string?]
+                       [manual-order-time string?]
+                       [minimum-trade-quantity (or/c integer? #f)]
+                       [minimum-compete-size (or/c integer? #f)]
+                       [compete-against-best-offset (or/c rational? #f)]
+                       [is-compete-against-best-offset-up-to-mid boolean?]
+                       [mid-offset-at-whole (or/c rational? #f)]
+                       [mid-offset-at-half (or/c rational? #f)]
+                       [customer-account string?]
+                       [professional-customer boolean?]
+                       [external-user-id string?]
+                       [manual-order-indicator integer?]))
   (class* ibkr-msg%
     (req-msg<%>)
     (super-new [msg-id 3]
@@ -691,7 +709,22 @@
                 [dont-use-auto-price-for-hedge #f]
                 [is-oms-container #f]
                 [discretionary-up-to-limit-price #f]
-                [use-price-management-algo #f])
+                [use-price-management-algo #f]
+                [duration 0]
+                [post-to-ats 2147483647] ; Integer.MAX_VALUE
+                [auto-cancel-parent #f]
+                [advanced-error-override ""]
+                [manual-order-time ""]
+                [minimum-trade-quantity #f]
+                [minimum-compete-size #f]
+                [compete-against-best-offset #f]
+                [is-compete-against-best-offset-up-to-mid #f]
+                [mid-offset-at-whole #f]
+                [mid-offset-at-half #f]
+                [customer-account ""]
+                [professional-customer #f]
+                [external-user-id ""]
+                [manual-order-indicator 0])
     (define/public (->string)
       (string-append
        (number->string msg-id) "\0"
@@ -768,12 +801,12 @@
        ; deprecated shares-allocation
        "\0"
        (if (rational? discretionary-amount) (real->decimal-string discretionary-amount 2) "") "\0"
-       (if (moment? good-after-time) (~t good-after-time "yyyyMMdd HH:mm:ss z") "") "\0"
+       (if (moment? good-after-time) (~t (adjust-timezone good-after-time "UTC") "yyyyMMdd-HH:mm:ss") "") "\0"
        (if (date? good-till-date) (~t good-till-date "yyyyMMdd") "") "\0"
        advisor-group "\0"
        advisor-method "\0"
        advisor-percentage "\0"
-       advisor-profile "\0"
+       ; deprecated advisor-profile
        model-code "\0"
        (number->string short-sale-slot) "\0"
        designated-location "\0"
@@ -784,15 +817,14 @@
        (if all-or-none "1" "0") "\0"
        (if (integer? minimum-quantity) (number->string minimum-quantity) "") "\0"
        (if (rational? percent-offset) (real->decimal-string percent-offset 2) "") "\0"
-       (if electronic-trade-only "1" "0") "\0"
-       (if firm-quote-only "1" "0") "\0"
-       (if (rational? nbbo-price-cap) (real->decimal-string nbbo-price-cap 2) "") "\0"
+       (if electronic-trade-only "1" "0") "\0" ; latest Java client versions just send #f
+       (if firm-quote-only "1" "0") "\0" ; latest Java client versions just send #f
+       (if (rational? nbbo-price-cap) (real->decimal-string nbbo-price-cap 2) "") "\0" ; latest Java client versions just send max value
        (match auction-strategy
          ['match "1"]
          ['improvement "2"]
          ['transparent "3"]
-         [_ "0"])
-       "\0"
+         [_ "0"]) "\0"
        (real->decimal-string starting-price 2) "\0"
        (real->decimal-string stock-ref-price 2) "\0"
        (if (rational? delta) (real->decimal-string delta 2) "") "\0"
@@ -834,8 +866,7 @@
          ['ib "IB"]
          ['away "Away"]
          ['pta "PTA"]
-         [_ ""])
-       "\0"
+         [_ ""]) "\0"
        (if not-held "1" "0") "\0"
        (if (and (integer? delta-neutral-contract-id)
                 (rational? delta-neutral-delta)
@@ -845,8 +876,7 @@
             (number->string delta-neutral-contract-id) "\0"
             (real->decimal-string delta-neutral-delta 2) "\0"
             (real->decimal-string delta-neutral-price 2))
-           "0")
-       "\0"
+           "0") "\0"
        algo-strategy "\0"
        (if (equal? "" algo-strategy)
            ""
@@ -861,7 +891,7 @@
        (if solicited "1" "0") "\0"
        (if randomize-size "1" "0") "\0"
        (if randomize-price "1" "0") "\0"
-       (if (equal? order-type 'peg-bench)
+       (if (equal? "PEG BENCH" order-type)
            (string-append
             (number->string reference-contract-id) "\0"
             (if is-pegged-change-amount-decrease "1" "0") "\0"
@@ -893,7 +923,7 @@
                                         ['mid-point "8"]) "\0")]
                              ['time (string-append
                                      (match (condition-comparator c) ['less-than "0"] ['greater-than "1"]) "\0"
-                                     (~t (condition-value c) "yyyyMMdd HH:mm:ss") "\0")]
+                                     (~t (adjust-timezone (condition-value c) "UTC") "yyyyMMdd-HH:mm:ss") "\0")]
                              ['margin (string-append
                                        (match (condition-comparator c) ['less-than "0"] ['greater-than "1"]) "\0"
                                        (number->string (condition-value c)) "\0")]
@@ -917,8 +947,7 @@
            "")
        (if (symbol? adjusted-order-type)
            (string-replace (string-upcase (symbol->string order-type)) "-" " ")
-           "")
-       "\0"
+           "") "\0"
        (real->decimal-string trigger-price 2) "\0"
        (real->decimal-string limit-price-offset 2) "\0"
        (real->decimal-string adjusted-stop-price 2) "\0"
@@ -936,7 +965,33 @@
        (if dont-use-auto-price-for-hedge "1" "0") "\0"
        (if is-oms-container "1" "0") "\0"
        (if discretionary-up-to-limit-price "1" "0") "\0"
-       (if use-price-management-algo "1" "0") "\0"))))
+       (if use-price-management-algo "1" "0") "\0"
+       (number->string duration) "\0"
+       (number->string post-to-ats) "\0"
+       (if auto-cancel-parent "1" "0") "\0"
+       advanced-error-override "\0"
+       manual-order-time "\0"
+       (if (equal? "IBKRATS" exchange)
+           (string-append (if (integer? minimum-trade-quantity) (number->string minimum-trade-quantity)
+                              "") "\0")
+           "")
+       (if (equal? "PEG BEST" order-type)
+           (string-append (if (integer? minimum-compete-size) (number->string minimum-compete-size)
+                              "") "\0"
+                          (if (rational? compete-against-best-offset) (real->decimal-string compete-against-best-offset 2)
+                              "") "\0")
+           "")
+       (if (or (and (equal? "PEG BEST" order-type) is-compete-against-best-offset-up-to-mid)
+               (equal? "PEG MID" order-type))
+           (string-append (if (rational? mid-offset-at-whole) (real->decimal-string mid-offset-at-whole 2)
+                              "") "\0"
+                          (if (rational? mid-offset-at-half) (real->decimal-string mid-offset-at-half 2)
+                              "") "\0")
+           "")
+       customer-account "\0"
+       (if professional-customer "1" "0") "\0"
+       external-user-id "\0"
+       (number->string manual-order-indicator) "\0"))))
 
 (define/contract start-api-req%
   (class/c (inherit-field [msg-id integer?]

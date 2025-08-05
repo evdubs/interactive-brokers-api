@@ -36,7 +36,6 @@
      (trading-class string?)
      (contract-id integer?)
      (minimum-tick-increment rational?)
-     (md-size-multiplier integer?)
      (multiplier string?)
      (order-types (listof string?))
      (valid-exchanges (listof string?))
@@ -59,7 +58,30 @@
      (underlying-security-type (or/c 'stk 'opt 'fut 'cash 'bond 'cfd 'fop 'war 'iopt 'fwd 'bag
                                      'ind 'bill 'fund 'fixed 'slb 'news 'cmdty 'bsk 'icu 'ics #f))
      (market-rule-ids (listof string?))
-     (real-expiry (or/c date? #f)))]
+     (real-expiry (or/c date? #f))
+     (stock-type string?)
+     (minimum-size rational?)
+     (size-increment rational?)
+     (suggested-size-increment rational?)
+     (fund-name string?)
+     (fund-family string?)
+     (fund-type string?)
+     (fund-front-load string?)
+     (fund-back-load string?)
+     (fund-back-load-time-interval string?)
+     (fund-management-fee string?)
+     (fund-closed boolean?)
+     (fund-closed-for-new-investors boolean?)
+     (fund-closed-for-new-money boolean?)
+     (fund-notify-amount (or/c rational? #f))
+     (fund-minimum-initial-purchase (or/c rational? #f))
+     (fund-subsequent-minimum-purchase (or/c rational? #f))
+     (fund-blue-sky-states string?)
+     (fund-blue-sky-territories string?)
+     (fund-distribution-policy (or/c 'accumulation 'income #f))
+     (fund-asset-type (or/c 'money-market 'fixed-income 'multi-asset 'equity
+                            'sector 'guaranteed 'alternative 'others #f))
+     (ineligibility-reasons hash?))]
   [struct err-rsp
     ((id integer?)
      (error-code integer?)
@@ -94,7 +116,9 @@
      (order-reference string?)
      (ev-rule string?)
      (ev-multiplier (or/c rational? #f))
-     (model-code string?))]
+     (model-code string?)
+     (last-liquidity integer?)
+     (pending-price-revision boolean?))]
   [struct historical-data-rsp
     ((request-id integer?)
      (start-moment moment?)
@@ -253,7 +277,17 @@
      (dont-use-auto-price-for-hedge boolean?)
      (is-oms-container boolean?)
      (discretionary-up-to-limit-price boolean?)
-     (use-price-management-algo boolean?))]
+     (use-price-management-algo boolean?)
+     (duration integer?)
+     (post-to-ats (or/c integer? #f))
+     (minimum-trade-quantity (or/c integer? #f))
+     (minimum-compete-size (or/c integer? #f))
+     (compete-against-best-offset (or/c rational? #f))
+     (mid-offset-at-whole (or/c rational? #f))
+     (mid-offset-at-half (or/c rational? #f))
+     (customer-account string?)
+     (professional-customer boolean?)
+     (bond-accrued-interest (or/c rational? #f)))]
   [struct order-status-rsp
     ((order-id integer?)
      (status (or/c 'pending-submit 'pending-cancel 'pre-submitted 'submitted
@@ -319,7 +353,6 @@
    trading-class
    contract-id
    minimum-tick-increment
-   md-size-multiplier
    multiplier
    order-types
    valid-exchanges
@@ -341,7 +374,29 @@
    underlying-symbol
    underlying-security-type
    market-rule-ids
-   real-expiry)
+   real-expiry
+   stock-type
+   minimum-size
+   size-increment
+   suggested-size-increment
+   fund-name
+   fund-family
+   fund-type
+   fund-front-load
+   fund-back-load
+   fund-back-load-time-interval
+   fund-management-fee
+   fund-closed
+   fund-closed-for-new-investors
+   fund-closed-for-new-money
+   fund-notify-amount
+   fund-minimum-initial-purchase
+   fund-subsequent-minimum-purchase
+   fund-blue-sky-states
+   fund-blue-sky-territories
+   fund-distribution-policy
+   fund-asset-type
+   ineligibility-reasons)
   #:transparent)
 
 (struct err-rsp
@@ -379,7 +434,9 @@
    order-reference
    ev-rule
    ev-multiplier
-   model-code)
+   model-code
+   last-liquidity
+   pending-price-revision)
   #:transparent)
 
 (struct historical-data-rsp
@@ -541,7 +598,17 @@
    dont-use-auto-price-for-hedge
    is-oms-container
    discretionary-up-to-limit-price
-   use-price-management-algo)
+   use-price-management-algo
+   duration
+   post-to-ats
+   minimum-trade-quantity
+   minimum-compete-size
+   compete-against-best-offset
+   mid-offset-at-whole
+   mid-offset-at-half
+   customer-account
+   professional-customer
+   bond-accrued-interest)
   #:transparent)
 
 (struct order-status-rsp
@@ -638,7 +705,7 @@
     [(list "4" "2" id error-code message) (err-rsp (string->number id) (string->number error-code) message)]
     ; open order
     [(list-rest "5" details)
-     (let* ([combo-legs-index 78]
+     (let* ([combo-legs-index 77]
             [combo-legs-size (string->number (list-ref details combo-legs-index))]
             [order-combo-legs-index (+ 1 combo-legs-index (* 8 combo-legs-size))]
             [order-combo-legs-size (string->number (list-ref details order-combo-legs-index))]
@@ -709,70 +776,69 @@
         (list-ref details 22) ; order-ref
         (string->number (list-ref details 23)) ; client-id
         (string->number (list-ref details 24)) ; perm-id
-        (if (equal? "1" (list-ref details 25)) #t #f) ; outside-rth
-        (if (equal? "1" (list-ref details 26)) #t #f) ; hidden
+        (equal? "1" (list-ref details 25)) ; outside-rth
+        (equal? "1" (list-ref details 26)) ; hidden
         (string->number (list-ref details 27)) ; discretionary-amount
         ; take out the time-zone-name as srfi/19 does not handle this. assume local time zone
         (if (equal? "" (list-ref details 28))
-            #f (parse-moment (second (regexp-match #px"([0-9]{8} [0-9]{2}:[0-9]{2}:[0-9]{2}) [A-Z]+"
-                                                   (list-ref details 28))) "yyyyMMdd HH:mm:ss")) ; good-after-time
+            #f (parse-moment (list-ref details 28) "yyyyMMdd HH:mm:ss VV")) ; good-after-time
         ; deprecated shares allocation
         (list-ref details 30) ; advisor-group
         (list-ref details 31) ; advisor-method
         (list-ref details 32) ; advisor-percentage
-        (list-ref details 33) ; advisor-profile
-        (list-ref details 34) ; model-code
-        (if (equal? "" (list-ref details 35))
-            #f (parse-date (list-ref details 35) "yyyyMMdd")) ; good-till-date
-        (list-ref details 36) ; rule-80-a
-        (string->number (list-ref details 37)) ; percent-offset
-        (list-ref details 38) ; settling-firm
-        (string->number (list-ref details 39)) ; short-sale-slot
-        (list-ref details 40) ; designated-location
-        (string->number (list-ref details 41)) ; exempt-code
-        (match (list-ref details 42)
+        "" ; (list-ref details 33) deprecated advisor-profile
+        (list-ref details 33) ; model-code
+        (if (equal? "" (list-ref details 34))
+            #f (parse-date (list-ref details 34) "yyyyMMdd")) ; good-till-date
+        (list-ref details 35) ; rule-80-a
+        (string->number (list-ref details 36)) ; percent-offset
+        (list-ref details 37) ; settling-firm
+        (string->number (list-ref details 38)) ; short-sale-slot
+        (list-ref details 39) ; designated-location
+        (string->number (list-ref details 40)) ; exempt-code
+        (match (list-ref details 41)
           ["1" 'match]
           ["2" 'improvement]
           ["3" 'transparent]
           [_ #f]) ; auction-strategy
-        (string->number (list-ref details 43)) ; starting-price
-        (string->number (list-ref details 44)) ; stock-ref-price
-        (string->number (list-ref details 45)) ; delta
-        (string->number (list-ref details 46)) ; stock-range-lower
-        (string->number (list-ref details 47)) ; stock-range-upper
-        (string->number (list-ref details 48)) ; display-size
-        (if (equal? "1" (list-ref details 49)) #t #f) ; block-order
-        (if (equal? "1" (list-ref details 50)) #t #f) ; sweep-to-fill
-        (if (equal? "1" (list-ref details 51)) #t #f) ; all-or-none
-        (string->number (list-ref details 52)) ; minimum-quantity
-        (string->number (list-ref details 53)) ; oca-type
-        (if (equal? "1" (list-ref details 54)) #t #f) ; electronic-trade-only
-        (if (equal? "1" (list-ref details 55)) #t #f) ; firm-quote-only
-        (string->number (list-ref details 56)) ; nbbo-price-cap
-        (string->number (list-ref details 57)) ; parent-id
-        (string->number (list-ref details 58)) ; trigger-method
-        (string->number (list-ref details 59)) ; volatility
-        (string->number (list-ref details 60)) ; volatility-type
-        (list-ref details 61) ; delta-neutral-order-type
-        (string->number (list-ref details 62)) ; delta-neutral-aux-price
-        (string->number (list-ref details 63)) ; delta-neutral-contract-id
-        (list-ref details 64) ; delta-neutral-settling-firm
-        (list-ref details 65) ; delta-neutral-clearing-account
-        (list-ref details 66) ; delta-neutral-clearing-intent
-        (match (list-ref details 67)
+        (string->number (list-ref details 42)) ; starting-price
+        (string->number (list-ref details 43)) ; stock-ref-price
+        (string->number (list-ref details 44)) ; delta
+        (string->number (list-ref details 45)) ; stock-range-lower
+        (string->number (list-ref details 46)) ; stock-range-upper
+        (string->number (list-ref details 47)) ; display-size
+        (equal? "1" (list-ref details 48)) ; block-order
+        (equal? "1" (list-ref details 49)) ; sweep-to-fill
+        (equal? "1" (list-ref details 50)) ; all-or-none
+        (string->number (list-ref details 51)) ; minimum-quantity
+        (string->number (list-ref details 52)) ; oca-type
+        (equal? "1" (list-ref details 53)) ; electronic-trade-only
+        (equal? "1" (list-ref details 54)) ; firm-quote-only
+        (string->number (list-ref details 55)) ; nbbo-price-cap
+        (string->number (list-ref details 56)) ; parent-id
+        (string->number (list-ref details 57)) ; trigger-method
+        (string->number (list-ref details 58)) ; volatility
+        (string->number (list-ref details 59)) ; volatility-type
+        (list-ref details 60) ; delta-neutral-order-type
+        (string->number (list-ref details 61)) ; delta-neutral-aux-price
+        (string->number (list-ref details 62)) ; delta-neutral-contract-id
+        (list-ref details 63) ; delta-neutral-settling-firm
+        (list-ref details 64) ; delta-neutral-clearing-account
+        (list-ref details 65) ; delta-neutral-clearing-intent
+        (match (list-ref details 66)
           ["O" 'open]
           ["C" 'close]
           [_ #f]) ; delta-neutral-open-close
-        (if (equal? "1" (list-ref details 68)) #t #f) ; delta-neutral-short-sale
-        (string->number (list-ref details 69)) ; delta-neutral-short-sale-slot
-        (list-ref details 70) ; delta-neutral-designated-location
-        (string->number (list-ref details 71)) ; continuous-update
-        (string->number (list-ref details 72)) ; reference-price-type
-        (string->number (list-ref details 73)) ; trailing-stop-price
-        (string->number (list-ref details 74)) ; trailing-percent
-        (string->number (list-ref details 75)) ; basis-points
-        (string->number (list-ref details 76)) ; basis-points-type
-        (list-ref details 77) ; combo-legs-description
+        (equal? "1" (list-ref details 67)) ; delta-neutral-short-sale
+        (string->number (list-ref details 68)) ; delta-neutral-short-sale-slot
+        (list-ref details 69) ; delta-neutral-designated-location
+        (string->number (list-ref details 70)) ; continuous-update
+        (string->number (list-ref details 71)) ; reference-price-type
+        (string->number (list-ref details 72)) ; trailing-stop-price
+        (string->number (list-ref details 73)) ; trailing-percent
+        (string->number (list-ref details 74)) ; basis-points
+        (string->number (list-ref details 75)) ; basis-points-type
+        (list-ref details 76) ; combo-legs-description
         (map (λ (i) (combo-leg
                      (string->number (list-ref details (+ 1 (* i 8) combo-legs-index))) ; contract-id
                      (string->number (list-ref details (+ 2 (* i 8) combo-legs-index))) ; ratio
@@ -802,20 +868,20 @@
         (if (equal? "" (list-ref details (+ 2 scale-init-level-size-index)))
             #f (string->number (list-ref details (+ 5 scale-init-level-size-index)))) ; scale-profit-offset
         (if (equal? "" (list-ref details (+ 2 scale-init-level-size-index)))
-            #f (if (equal? "1" (list-ref details (+ 6 scale-init-level-size-index))) #t #f)) ; scale-auto-reset
+            #f (equal? "1" (list-ref details (+ 6 scale-init-level-size-index)))) ; scale-auto-reset
         (if (equal? "" (list-ref details (+ 2 scale-init-level-size-index)))
             #f (string->number (list-ref details (+ 7 scale-init-level-size-index)))) ; scale-init-position
         (if (equal? "" (list-ref details (+ 2 scale-init-level-size-index)))
             #f (string->number (list-ref details (+ 8 scale-init-level-size-index)))) ; scale-init-fill-quantity
         (if (equal? "" (list-ref details (+ 2 scale-init-level-size-index)))
-            #f (if (equal? "1" (list-ref details (+ 9 scale-init-level-size-index))) #t #f)) ; scale-random-percent
+            #f (equal? "1" (list-ref details (+ 9 scale-init-level-size-index)))) ; scale-random-percent
         (list-ref details hedge-type-index) ; hedge-type
         (if (equal? "" (list-ref details hedge-type-index))
             "" (list-ref details (+ 1 hedge-type-index))) ; hedge-param
-        (if (equal? "1" (list-ref details opt-out-smart-routing-index)) #t #f) ; opt-out-smart-routing
+        (equal? "1" (list-ref details opt-out-smart-routing-index)) ; opt-out-smart-routing
         (list-ref details (+ 1 opt-out-smart-routing-index)) ; clearing-account
         (string->symbol (string-downcase (list-ref details (+ 2 opt-out-smart-routing-index)))) ; clearing-intent
-        (if (equal? "1" (list-ref details (+ 3 opt-out-smart-routing-index))) #t #f) ; not-held
+        (equal? "1" (list-ref details (+ 3 opt-out-smart-routing-index))) ; not-held
         (if (equal? 0 delta-neutral-contract-indicator)
             #f (string->number (list-ref details (+ 5 opt-out-smart-routing-index)))) ; delta-neutral-underlying-contract-id
         (if (equal? 0 delta-neutral-contract-indicator)
@@ -825,8 +891,8 @@
         (list-ref details algo-strategy-index) ; algo-strategy
         (apply hash (take (drop details (+ 2 algo-strategy-index))
                           (* 2 algo-strategy-params-size))) ; algo-strategy-params
-        (if (equal? "1" (list-ref details solicited-index)) #t #f) ; solicited
-        (if (equal? "1" (list-ref details (+ 1 solicited-index))) #t #f) ; what-if
+        (equal? "1" (list-ref details solicited-index)) ; solicited
+        (equal? "1" (list-ref details (+ 1 solicited-index))) ; what-if
         (list-ref details (+ 2 solicited-index)) ; status
         ; there are some bits in the Java code that attempt to use Double.MAX as a null value.
         ; usually, these are later removed, but in a few cases like the ones below, they are
@@ -854,12 +920,12 @@
         (string->number (list-ref details (+ 14 solicited-index))) ; maximum-commission
         (list-ref details (+ 15 solicited-index)) ; commission-currency
         (list-ref details (+ 16 solicited-index)) ; warning-text
-        (if (equal? "1" (list-ref details (+ 17 solicited-index))) #t #f) ; randomize-size
-        (if (equal? "1" (list-ref details (+ 18 solicited-index))) #t #f) ; randomize-price
+        (equal? "1" (list-ref details (+ 17 solicited-index))) ; randomize-size
+        (equal? "1" (list-ref details (+ 18 solicited-index))) ; randomize-price
         (if (equal? "PEG BENCH" (list-ref details 14))
             (string->number (list-ref details (+ 19 solicited-index))) #f) ; reference-contract-id
         (if (equal? "PEG BENCH" (list-ref details 14))
-            (if (equal? "1" (list-ref details (+ 20 solicited-index))) #t #f) #f) ; is-pegged-change-amount-decrease
+            (equal? "1" (list-ref details (+ 20 solicited-index))) #f) ; is-pegged-change-amount-decrease
         (if (equal? "PEG BENCH" (list-ref details 14))
             (string->number (list-ref details (+ 21 solicited-index))) #f) ; pegged-change-amount
         (if (equal? "PEG BENCH" (list-ref details 14))
@@ -891,8 +957,7 @@
                        'time ; type
                        (match (list-ref details (+ 1 i)) ["a" 'and] ["o" 'or]) ; boolean-operator
                        (match (list-ref details (+ 2 i)) ["0" 'less-than] ["1" 'greater-than]) ; comparator
-                       (parse-moment (second (regexp-match #px"([0-9]{8} [0-9]{2}:[0-9]{2}:[0-9]{2}) [A-Z]+"
-                                                           (list-ref details (+ 3 i)))) "yyyyMMdd HH:mm:ss") ; time
+                       (parse-moment (list-ref details (+ 3 i)) "yyyyMMdd HH:mm:ss VV") ; time
                        #f ; contract-id
                        #f ; exchange
                        #f ; trigger-method
@@ -958,10 +1023,21 @@
         (list-ref details (+ 9 adjusted-order-type-index)) ; soft-dollar-tier-val
         (list-ref details (+ 10 adjusted-order-type-index)) ; soft-dollar-tier-display-name
         (string->number (list-ref details (+ 11 adjusted-order-type-index))) ; cash-quantity
-        (if (equal? "1" (list-ref details (+ 12 adjusted-order-type-index))) #t #f) ; dont-use-auto-price-for-hedge
-        (if (equal? "1" (list-ref details (+ 13 adjusted-order-type-index))) #t #f) ; is-oms-container
-        (if (equal? "1" (list-ref details (+ 14 adjusted-order-type-index))) #t #f) ; discretionary-up-to-limit-price
-        (if (equal? "1" (list-ref details (+ 15 adjusted-order-type-index))) #t #f) ; use-price-management-algo
+        (equal? "1" (list-ref details (+ 12 adjusted-order-type-index))) ; dont-use-auto-price-for-hedge
+        (equal? "1" (list-ref details (+ 13 adjusted-order-type-index))) ; is-oms-container
+        (equal? "1" (list-ref details (+ 14 adjusted-order-type-index))) ; discretionary-up-to-limit-price
+        (equal? "1" (list-ref details (+ 15 adjusted-order-type-index))) ; use-price-management-algo
+        (string->number (list-ref details (+ 16 adjusted-order-type-index))) ; duration
+        (string->number (list-ref details (+ 17 adjusted-order-type-index))) ; post-to-ats
+        ; auto-cancel-parent
+        (string->number (list-ref details (+ 19 adjusted-order-type-index))) ; minimum-trade-quantity
+        (string->number (list-ref details (+ 20 adjusted-order-type-index))) ; minimum-compete-size
+        (string->number (list-ref details (+ 21 adjusted-order-type-index))) ; compete-against-best-offset
+        (string->number (list-ref details (+ 22 adjusted-order-type-index))) ; mid-offset-at-whole
+        (string->number (list-ref details (+ 23 adjusted-order-type-index))) ; mid-offset-at-half
+        (list-ref details (+ 24 adjusted-order-type-index)) ; customer-account
+        (equal? "1" (list-ref details (+ 25 adjusted-order-type-index))) ; professional-customer
+        (string->number (list-ref details (+ 26 adjusted-order-type-index))) ; bond-accrued-interest
         ))]
     ; account value
     [(list "6" version key value currency account-name) (account-value-rsp key value currency account-name)]
@@ -993,30 +1069,33 @@
     ; next valid id
     [(list "9" version order-id) (next-valid-id-rsp (string->number order-id))]
     ; contract details
-    [(list-rest "10" version details)
+    [(list-rest "10" details)
      (let* ([security-ids-index 30]
             [security-ids-size (string->number (list-ref details security-ids-index))]
-            [agg-group-index (+ 1 security-ids-index (* 2 security-ids-size))])
+            [agg-group-index (+ 1 security-ids-index (* 2 security-ids-size))]
+            [ineligibility-reasons-index (if (equal? "FUND" (list-ref details 2))
+                                             (+ 26 agg-group-index) (+ 9 agg-group-index))]
+            [ineligibility-reasons-size (string->number (list-ref details ineligibility-reasons-index))])
        (contract-details-rsp
         (string->number (list-ref details 0)) ; request-id
         (list-ref details 1) ; symbol
         (string->symbol (string-downcase (list-ref details 2))) ; security-type
-        (if (equal? "" (list-ref details 3))
-            #f (parse-date (second (regexp-match #px"([0-9]{8})( [0-9]{2}:[0-9]{2} [A-Z]{3})?"
-                                                 (list-ref details 3))) "yyyyMMdd")) ; expiry
-        (string->number (list-ref details 4)) ; strike
-        (match (list-ref details 5)
+        ; there is an extra last trade date in the message here
+        (if (equal? "" (list-ref details 4))
+            #f (parse-date (list-ref details 4) "yyyyMMdd")) ; expiry
+        (string->number (list-ref details 5)) ; strike
+        (match (list-ref details 6)
           ["C" 'call]
           ["P" 'put]
           [_ #f]) ; right
-        (list-ref details 6) ; exchange
-        (list-ref details 7) ; currency
-        (list-ref details 8) ; local-symbol
-        (list-ref details 9) ; market-name
-        (list-ref details 10) ; trading-class
-        (string->number (list-ref details 11)) ; contract-id
-        (string->number (list-ref details 12)) ; minimum-tick-increment
-        (string->number (list-ref details 13)) ; md-size-multiplier
+        (list-ref details 7) ; exchange
+        (list-ref details 8) ; currency
+        (list-ref details 9) ; local-symbol
+        (list-ref details 10) ; market-name
+        (list-ref details 11) ; trading-class
+        (string->number (list-ref details 12)) ; contract-id
+        (string->number (list-ref details 13)) ; minimum-tick-increment
+        ; md-size-multiplier no longer present
         (list-ref details 14) ; multiplier
         (string-split (list-ref details 15) ",") ; order-types
         (string-split (list-ref details 16) ",") ; valid-exchanges
@@ -1041,6 +1120,49 @@
         (string-split (list-ref details (+ 3 agg-group-index)) ",") ; market-rule-ids
         (if (equal? "" (list-ref details (+ 4 agg-group-index)))
             #f (parse-date (list-ref details (+ 4 agg-group-index)) "yyyyMMdd")) ; real-expiry
+        (list-ref details (+ 5 agg-group-index)) ; stock-type
+        ; size-minimum-tick not used
+        (string->number (list-ref details (+ 6 agg-group-index))) ; minimum-size
+        (string->number (list-ref details (+ 7 agg-group-index))) ; size-increment
+        (string->number (list-ref details (+ 8 agg-group-index))) ; suggested-size-increment
+        (if (equal? "FUND" (list-ref details 2)) (list-ref details (+ 9 agg-group-index)) "") ; fund-name
+        (if (equal? "FUND" (list-ref details 2)) (list-ref details (+ 10 agg-group-index)) "") ; fund-family
+        (if (equal? "FUND" (list-ref details 2)) (list-ref details (+ 11 agg-group-index)) "") ; fund-type
+        (if (equal? "FUND" (list-ref details 2)) (list-ref details (+ 12 agg-group-index)) "") ; fund-front-load
+        (if (equal? "FUND" (list-ref details 2)) (list-ref details (+ 13 agg-group-index)) "") ; fund-back-load
+        (if (equal? "FUND" (list-ref details 2)) (list-ref details (+ 14 agg-group-index)) "") ; fund-back-load-time-interval
+        (if (equal? "FUND" (list-ref details 2)) (list-ref details (+ 15 agg-group-index)) "") ; fund-management-fee
+        (if (equal? "FUND" (list-ref details 2)) (equal? "1" (list-ref details (+ 16 agg-group-index))) #f) ; fund-closed
+        (if (equal? "FUND" (list-ref details 2)) (equal? "1" (list-ref details (+ 17 agg-group-index))) #f) ; fund-closed-for-new-investors
+        (if (equal? "FUND" (list-ref details 2)) (equal? "1" (list-ref details (+ 18 agg-group-index))) #f) ; fund-closed-for-new-money
+        (if (and (equal? "FUND" (list-ref details 2)) (equal? "" (list-ref details (+ 19 agg-group-index))))
+            (string->number (list-ref details (+ 19 agg-group-index))) #f) ; fund-notify-amount
+        (if (and (equal? "FUND" (list-ref details 2)) (equal? "" (list-ref details (+ 20 agg-group-index))))
+            (string->number (list-ref details (+ 20 agg-group-index))) #f) ; fund-minimum-initial-purchase
+        (if (and (equal? "FUND" (list-ref details 2)) (equal? "" (list-ref details (+ 21 agg-group-index))))
+            (string->number (list-ref details (+ 21 agg-group-index))) #f) ; fund-subsequent-minimum-purchase
+        (if (equal? "FUND" (list-ref details 2)) (list-ref details (+ 22 agg-group-index)) "") ; fund-blue-sky-states
+        (if (equal? "FUND" (list-ref details 2)) (list-ref details (+ 23 agg-group-index)) "") ; fund-blue-sky-territories
+        (if (equal? "FUND" (list-ref details 2))
+            (match (list-ref details (+ 24 agg-group-index))
+              ["N" 'accumulation]
+              ["Y" 'income]
+              [_ #f])
+            #f) ; fund-distribution-policy
+        (if (equal? "FUND" (list-ref details 2))
+            (match (list-ref details (+ 25 agg-group-index))
+              ["000" 'others]
+              ["001" 'money-market]
+              ["002" 'fixed-income]
+              ["003" 'multi-asset]
+              ["004" 'equity]
+              ["005" 'sector]
+              ["006" 'guaranteed]
+              ["007" 'alternative]
+              [_ #f])
+            #f) ; fund-asset-type
+        (apply hash (take (drop details (+ 1 ineligibility-reasons-index))
+                          (* 2 ineligibility-reasons-size))) ; ineligibility-reasons
         ))]
     ; execution
     [(list-rest "11" details) (execution-rsp
@@ -1063,8 +1185,7 @@
                                (list-ref details 12) ; trading-class
                                (list-ref details 13) ; execution-id
                                ; take out the time-zone-name as srfi/19 does not handle this. assume local time zone
-                               (parse-moment (second (regexp-match #px"([0-9]{8} +[0-9]{2}:[0-9]{2}:[0-9]{2})( [A-Z]+)?"
-                                                                   (list-ref details 14))) "yyyyMMdd  HH:mm:ss") ; timestamp
+                               (parse-moment (list-ref details 14) "yyyyMMdd HH:mm:ss VV") ; timestamp
                                (list-ref details 15) ; account
                                (list-ref details 16) ; executing-exchange
                                (list-ref details 17) ; side
@@ -1079,6 +1200,8 @@
                                (list-ref details 26) ; ev-rule
                                (string->number (list-ref details 27)) ; ev-multiplier
                                (list-ref details 28) ; model-code
+                               (string->number (list-ref details 29)) ; last-liquidity
+                               (equal? "1" (list-ref details 30)) ; pending-price-revision
                                )]
     ; managed accounts
     [(list-rest "15" num-accts accts) accts]
@@ -1086,10 +1209,10 @@
     [(list-rest "17" request-id start-moment end-moment bar-count details)
      (historical-data-rsp
       (string->number request-id)
-      (parse-moment start-moment "yyyyMMdd  HH:mm:ss")
-      (parse-moment end-moment "yyyyMMdd  HH:mm:ss")
+      (parse-moment start-moment "yyyyMMdd HH:mm:ss VV")
+      (parse-moment end-moment "yyyyMMdd HH:mm:ss VV")
       (map (λ (i) (bar
-                   (parse-moment (list-ref details (* i 8)) "yyyyMMdd  HH:mm:ss")
+                   (parse-moment (list-ref details (* i 8)) "yyyyMMdd HH:mm:ss VV")
                    (string->number (list-ref details (+ 1 (* i 8))))
                    (string->number (list-ref details (+ 2 (* i 8))))
                    (string->number (list-ref details (+ 3 (* i 8))))
@@ -1111,6 +1234,5 @@
                                            #f (string->number (list-ref details 5))) ; yield-redemption-date
                                        )]
     ; current timestamp
-    [(list "106" date-str) (parse-moment (second (regexp-match #px"([0-9]{8} [0-9]{2}:[0-9]{2}:[0-9]{2}) [A-Z]+"
-                                                               date-str)) "yyyyMMdd HH:mm:ss")]
+    [(list "106" date-str) (parse-moment date-str "yyyyMMdd HH:mm:ss VV")]
     [_ (string-split (bytes->string/utf-8 str) "\0")]))

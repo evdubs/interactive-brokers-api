@@ -5,7 +5,7 @@
 
 Racket implementation for the @link["https://interactivebrokers.github.io/tws-api/"]{Interactive Brokers' Trader Workstation Client API}.
 
-This implementation is based on the Java TWS API version 976.01. The protocol used to communicate between the client and server establishes
+This implementation is based on the Java TWS API version 10.30.01. The protocol used to communicate between the client and server establishes
  the client version and should allow the server to continue consuming and producing messages compatible with our version even when the server
  is updated. However, when there are desirable new features added, this library may be updated and its version number updated to reflect
  the version of the TWS API the new code uses.
@@ -181,7 +181,8 @@ will retrieve all actively trading AAPL options with a strike price of 200.0. By
 		 [local-symbol string? ""]
 		 [trading-class string? ""]
                  [security-id-type (or/c 'cusip 'sedol 'isin 'ric #f) #f]
-                 [security-id string? ""])]{}
+                 [security-id string? ""]
+                 [issuer-id string? ""])]{}
 
 }
 
@@ -528,12 +529,29 @@ Be sure to add a handler for @racket[next-valid-id-rsp] in @racket[ibkr-session%
                  [dont-use-auto-price-for-hedge boolean? #f]
                  [is-oms-container boolean? #f]
                  [discretionary-up-to-limit-price boolean? #f]
-                 [use-price-management-algo boolean? #f])]{
+                 [use-price-management-algo boolean? #f]
+                 [duration integer? 0]
+                 [post-to-ats integer? 2147483647]
+                 [auto-cancel-parent boolean? #f]
+                 [advanced-error-override string? ""]
+                 [manual-order-time string? ""]
+                 [minimum-trade-quantity (or/c integer? #f) #f]
+                 [minimum-compete-size (or/c integer? #f) #f]
+                 [compete-against-best-offset (or/c rational? #f) #f]
+                 [is-compete-against-best-offset-up-to-mid boolean? #f]
+                 [mid-offset-at-whole (or/c rational? #f) #f]
+                 [mid-offset-at-half (or/c rational? #f) #f]
+                 [customer-account string? ""]
+                 [professional-customer boolean? #f]
+                 [external-user-id string? ""]
+                 [manual-order-indicator integer? 0])]{
 
 Please note that the fields @racket[action], @racket[order-type], @racket[time-in-force], @racket[open-close], and @racket[origin]
  use defaults that are not the @racket[#f], @racket[0], or @racket[""] typical defaults. Also note that you need to manage
  @racket[order-id] on your own. If you do not supply an @racket[order-id], it will use 0 and you will likely get an error stating
- the order ID has already been used.
+ the order ID has already been used. @racket[post-to-ats] has a default value of @racket[2147483647], which matches Java's
+ Integer.MAX_VALUE. The API typically uses these MAX_VALUEs as defaults; they used to take care to make sure the values were not
+ sent over the wire, but that is no longer the case with these additional fields.
 
 }}
 
@@ -606,7 +624,31 @@ Commission reports are sent along with executions when calls are made to @racket
 				 'ind 'bill 'fund 'fixed 'slb 'news
 				 'cmdty 'bsk 'icu 'ics #f))
  (market-rule-ids (listof string?))
- (real-expiry (or/c date? #f)))]{
+ (real-expiry (or/c date? #f))
+ (stock-type string?)
+ (minimum-size rational?)
+ (size-increment rational?)
+ (suggested-size-increment rational?)
+ (fund-name string?)
+ (fund-family string?)
+ (fund-type string?)
+ (fund-front-load string?)
+ (fund-back-load string?)
+ (fund-back-load-time-interval string?)
+ (fund-management-fee string?)
+ (fund-closed boolean?)
+ (fund-closed-for-new-investors boolean?)
+ (fund-closed-for-new-money boolean?)
+ (fund-notify-amount (or/c rational? #f))
+ (fund-minimum-initial-purchase (or/c rational? #f))
+ (fund-subsequent-minimum-purchase (or/c rational? #f))
+ (fund-blue-sky-states string?)
+ (fund-blue-sky-territories string?)
+ (fund-distribution-policy (or/c 'accumulation 'income #f))
+ (fund-asset-type (or/c 'money-market 'fixed-income 'multi-asset
+                        'equity 'sector 'guaranteed 'alternative
+                        'others #f))
+ (ineligibility-reasons hash?))]{
 
 When receiving contract details, it is often nice to use the @racket[contract-id] for subsequent new order or market data
 requests as these identifiers are unique.
@@ -654,7 +696,9 @@ Generic error message for incorrectly formed requests. Consult the Java API docs
  (order-reference string?)
  (ev-rule string?)
  (ev-multiplier (or/c rational? #f))
- (model-code string?))]{
+ (model-code string?)
+ (last-liquidity integer?)
+ (pending-price-revision boolean?))]{
 
 It is recommended to periodically call @racket[executions-req%] to make sure you receive all of the executions that have occurred.
 
@@ -843,7 +887,17 @@ This response should be saved locally so that calls to @racket[place-order-req%]
  (dont-use-auto-price-for-hedge boolean?)
  (is-oms-container boolean?)
  (discretionary-up-to-limit-price boolean?)
- (use-price-management-algo boolean?))]{
+ (use-price-management-algo boolean?)
+ (duration integer?)
+ (post-to-ats (or/c integer? #f))
+ (minimum-trade-quantity (or/c integer? #f))
+ (minimum-compete-size (or/c integer? #f))
+ (compete-against-best-offset (or/c rational? #f))
+ (mid-offset-at-whole (or/c rational? #f))
+ (mid-offset-at-half (or/c rational? #f))
+ (customer-account string?)
+ (professional-customer boolean?)
+ (bond-accrued-interest (or/c rational? #f)))]{
 
 This response is largely just telling you what you already provided to @racket[place-order-req%]. The fields of interest here
  are the generated @racket[client-id] and @racket[perm-id].

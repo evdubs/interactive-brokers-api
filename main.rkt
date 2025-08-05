@@ -111,7 +111,7 @@
 
       ; EClient.sendV100APIHeader
       (display "API\u0000" ibkr-out)
-      (write-sized-str "v100..151" ibkr-out)
+      (write-sized-str "v100..187" ibkr-out)
       (channel-put req-rsp-channel #f)
 
       ; EClient.startAPI

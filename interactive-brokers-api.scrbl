@@ -3,7 +3,7 @@
 @title{Interactive Brokers API}
 @author{evdubs}
 
-Racket implementation for the @link["https://interactivebrokers.github.io/tws-api/"]{Interactive Brokers' Trader Workstation Client API}.
+Racket implementation for the @link["https://ibkrcampus.com/campus/ibkr-api-page/twsapi-doc/"]{Interactive Brokers' Trader Workstation Client API}.
 
 This implementation is based on the Java TWS API version 10.30.01. The protocol used to communicate between the client and server establishes
  the client version and should allow the server to continue consuming and producing messages compatible with our version even when the server
@@ -723,7 +723,7 @@ Be sure to check for @racket[err-rsp]s if you are not receiving historical data 
  (type symbol?)
  (value rational?))]{
 
-More information about tick types can be found in the @link["https://interactivebrokers.github.io/tws-api/tick_types.html"]{IBKR Docs}.
+More information about tick types can be found in the @link["https://ibkrcampus.com/campus/ibkr-api-page/twsapi-doc/#available-tick-types"]{IBKR Docs}.
 
 }
 
@@ -1076,6 +1076,6 @@ Where fields are not required for a given condition type, they are not sent to t
 
 These are the symbols to use for @racket[market-data-req%]'s @racket[generic-tick-list].
 
-More information about tick types can be found in the @link["https://interactivebrokers.github.io/tws-api/tick_types.html"]{IBKR Docs}.
+More information about tick types can be found in the @link["https://ibkrcampus.com/campus/ibkr-api-page/twsapi-doc/#available-tick-types"]{IBKR Docs}.
 
 }

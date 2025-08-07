@@ -314,7 +314,7 @@
                        [delta-neutral-contract-id (or/c integer? #f)]
                        [delta-neutral-delta (or/c rational? #f)]
                        [delta-neutral-price (or/c rational? #f)]
-                       [generic-tick-list string?]
+                       [generic-tick-list (listof symbol?)]
                        [snapshot boolean?]
                        [regulatory-snapshot boolean?]
                        [market-data-options string?]))
@@ -340,7 +340,7 @@
                 [delta-neutral-contract-id #f]
                 [delta-neutral-delta #f]
                 [delta-neutral-price #f]
-                [generic-tick-list ""]
+                [generic-tick-list (list)]
                 [snapshot #f]
                 [regulatory-snapshot #f]
                 [market-data-options ""])
@@ -381,7 +381,7 @@
             (real->decimal-string delta-neutral-price 2))
            "0")
        "\0"
-       generic-tick-list "\0"
+       (string-join (map (λ (tick) (number->string (hash-ref generic-tick-request-hash tick))) generic-tick-list) ",") "\0"
        (if snapshot "1" "0") "\0"
        (if regulatory-snapshot "1" "0") "\0"
        market-data-options "\0"))))

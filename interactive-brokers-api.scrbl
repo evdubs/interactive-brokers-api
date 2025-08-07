@@ -66,6 +66,7 @@ This object is responsible for establishing a connection, sending messages, and 
 		 [handle-market-data-rsp (-> market-data-rsp? any) (λ (md) void)]
 		 [handle-next-valid-id-rsp (-> next-valid-id-rsp? any) (λ (nvi) void)]
 		 [handle-open-order-rsp (-> open-order-rsp? any) (λ (oo) void)]
+		 [handle-option-market-data-rsp (-> option-market-data-rsp? any) (λ (omd) void)]
 		 [handle-order-status-rsp (-> order-status-rsp? any) (λ (os) void)]
 		 [handle-portfolio-value-rsp (-> portfolio-value-rsp? any) (λ (pv) void)]
 		 [handle-server-time-rsp (-> moment? any) (λ (st) void)]
@@ -296,6 +297,8 @@ will subscribe to (at least) bid/ask price and size updates.
 
 You will need to track the relationship between your request-id and your parameters as the returned @racket[market-data-rsp]s
  will not have the symbol, security-type, etc. information.
+
+When requesting market data for an option, you will also receive @racket[option-market-data-rsp]s.
 
 @defconstructor[([request-id integer? 0]
                  [contract-id integer? 0]
@@ -658,7 +661,8 @@ requests as these identifiers are unique.
 @defstruct[err-rsp
 ((id integer?)
  (error-code integer?)
- (error-msg string?))]{
+ (error-msg string?)
+ (advanced-order-reject string?))]{
 
 Generic error message for incorrectly formed requests. Consult the Java API docs for more information. 
 
@@ -904,6 +908,23 @@ This response is largely just telling you what you already provided to @racket[p
 
 }
 
+@defstruct[option-market-data-rsp
+((request-id integer?)
+ (tick-type symbol?)
+ (tick-attrib (or/c 'return 'price))
+ (implied-volatility rational?)
+ (delta rational?)
+ (price rational?)
+ (pv-dividend rational?)
+ (gamma rational?)
+ (vega rational?)
+ (theta rational?)
+ (underlying-price rational?))]{
+
+When you request market data for options, you will receive both @racket[market-data-rsp]s as well as this response struct.
+
+}
+
 @defstruct[order-status-rsp
 ((order-id integer?)
  (status (or/c 'pending-submit 'pending-cancel 'pre-submitted 'submitted
@@ -1020,5 +1041,41 @@ Use @racket[condition] within @racket[place-order-req%] when you want your order
 ]
 
 Where fields are not required for a given condition type, they are not sent to the server and are effectively ignored.
+
+}
+
+@defthing[generic-tick-requests list?
+#:value '((option-volume 100)
+          (option-open-interest 101)
+          (average-option-volume 105)
+          (implied-volatility 106)
+          (historical-high-low-stats 165)
+          (creditman-mark-price 220)
+          (auction 225)
+          (mark-price 232)
+          (rt-volume 233)
+          (inventory 236)
+          (fundamentals 258)
+          (news 292)
+          (trade-count 293)
+          (trade-rate 294)
+          (volume-rate 295)
+          (last-rth-trade 318)
+          (rt-trade-volume 375)
+          (rt-historical-volatility 411)
+          (ib-dividends 456)
+          (bond-factor-multiplier 460)
+          (etf-nav-last 577)
+          (ipo-price 586)
+          (delayed-mark 587)
+          (futures-open-interest 588)
+          (short-term-volume 595)
+          (etf-nav-high-low 614)
+          (creditman-slow-mark-price 619)
+          (etf-nav-frozen-last 623))]{
+
+These are the symbols to use for @racket[market-data-req%]'s @racket[generic-tick-list].
+
+More information about tick types can be found in the @link["https://interactivebrokers.github.io/tws-api/tick_types.html"]{IBKR Docs}.
 
 }

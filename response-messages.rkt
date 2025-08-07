@@ -85,7 +85,8 @@
   [struct err-rsp
     ((id integer?)
      (error-code integer?)
-     (error-msg string?))]
+     (error-msg string?)
+     (advanced-order-reject string?))]
   [struct execution-rsp
     ((request-id integer?)
      (order-id integer?)
@@ -288,6 +289,18 @@
      (customer-account string?)
      (professional-customer boolean?)
      (bond-accrued-interest (or/c rational? #f)))]
+  [struct option-market-data-rsp
+    ((request-id integer?)
+     (tick-type symbol?)
+     (tick-attrib (or/c 'return 'price))
+     (implied-volatility rational?)
+     (delta rational?)
+     (price rational?)
+     (pv-dividend rational?)
+     (gamma rational?)
+     (vega rational?)
+     (theta rational?)
+     (underlying-price rational?))]
   [struct order-status-rsp
     ((order-id integer?)
      (status (or/c 'pending-submit 'pending-cancel 'pre-submitted 'submitted
@@ -402,7 +415,8 @@
 (struct err-rsp
   (id
    error-code
-   error-msg)
+   error-msg
+   advanced-order-reject)
   #:transparent)
 
 (struct execution-rsp
@@ -611,6 +625,20 @@
    bond-accrued-interest)
   #:transparent)
 
+(struct option-market-data-rsp
+  (request-id
+   tick-type
+   tick-attrib
+   implied-volatility
+   delta
+   price
+   pv-dividend
+   gamma
+   vega
+   theta
+   underlying-price)
+  #:transparent)
+
 (struct order-status-rsp
   (order-id
    status
@@ -662,6 +690,7 @@
                    moment?
                    next-valid-id-rsp?
                    open-order-rsp?
+                   option-market-data-rsp?
                    order-status-rsp?
                    portfolio-value-rsp?))
   (match (string-split (bytes->string/utf-8 str) "\0")
@@ -702,7 +731,8 @@
       (string->number market-cap-price))]
     ; generic error message
     ; ignoring error responses with version < 2
-    [(list "4" "2" id error-code message) (err-rsp (string->number id) (string->number error-code) message)]
+    [(list "4" "2" id error-code message advanced-order-reject)
+     (err-rsp (string->number id) (string->number error-code) message advanced-order-reject)]
     ; open order
     [(list-rest "5" details)
      (let* ([combo-legs-index 77]
@@ -1233,6 +1263,21 @@
                                        (if (equal? "" (list-ref details 5))
                                            #f (string->number (list-ref details 5))) ; yield-redemption-date
                                        )]
+    ; option market data
+    [(list "21" request-id tick-type tick-attrib implied-volatility
+           delta price pv-dividend gamma vega theta underlying-price)
+     (option-market-data-rsp
+      (string->number request-id)
+      (hash-ref tick-type-hash (string->number tick-type))
+      (if (equal? "1" tick-attrib) 'price 'return)
+      (rationalize (string->number implied-volatility) 1/1000000)
+      (rationalize (string->number delta) 1/1000000)
+      (rationalize (string->number price) 1/1000000)
+      (rationalize (string->number pv-dividend) 1/1000000)
+      (rationalize (string->number gamma) 1/1000000)
+      (rationalize (string->number vega) 1/1000000)
+      (rationalize (string->number theta) 1/1000000)
+      (rationalize (string->number underlying-price) 1/1000000))]
     ; current timestamp
     [(list "106" date-str) (parse-moment date-str "yyyyMMdd HH:mm:ss VV")]
     [_ (string-split (bytes->string/utf-8 str) "\0")]))

@@ -39,6 +39,7 @@
                        [handle-market-data-rsp (-> market-data-rsp? any)]
                        [handle-next-valid-id-rsp (-> next-valid-id-rsp? any)]
                        [handle-open-order-rsp (-> open-order-rsp? any)]
+                       [handle-option-market-data-rsp (-> option-market-data-rsp? any)]
                        [handle-order-status-rsp (-> order-status-rsp? any)]
                        [handle-portfolio-value-rsp (-> portfolio-value-rsp? any)]
                        [handle-server-time-rsp (-> moment? any)]
@@ -60,6 +61,7 @@
                 [handle-market-data-rsp (λ (md) void)]
                 [handle-next-valid-id-rsp (λ (nvi) void)]
                 [handle-open-order-rsp (λ (oo) void)]
+                [handle-option-market-data-rsp (λ (omd) void)]
                 [handle-order-status-rsp (λ (os) void)]
                 [handle-portfolio-value-rsp (λ (pv) void)]
                 [handle-server-time-rsp (λ (st) void)]
@@ -98,6 +100,7 @@
                    [(market-data-rsp? msg) (handle-market-data-rsp msg)]
                    [(next-valid-id-rsp? msg) (handle-next-valid-id-rsp msg)]
                    [(open-order-rsp? msg) (handle-open-order-rsp msg)]
+                   [(option-market-data-rsp? msg) (handle-option-market-data-rsp msg)]
                    [(order-status-rsp? msg) (handle-order-status-rsp msg)]
                    [(portfolio-value-rsp? msg) (handle-portfolio-value-rsp msg)]
                    ; we might want to just create an accounts structure that we can typecheck for

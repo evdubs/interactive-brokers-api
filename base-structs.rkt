@@ -35,6 +35,7 @@
      (security-type (or/c 'stk 'opt 'fut 'cash 'bond 'cfd 'fop 'war 'iopt 'fwd 'bag
                           'ind 'bill 'fund 'fixed 'slb 'news 'cmdty 'bsk 'icu 'ics #f))
      (symbol (or/c string? #f)))]
+  [generic-tick-request-hash (hash/c symbol? integer?)]
   [tick-type-hash (hash/c integer? symbol?)]))
 
 (struct bar
@@ -162,6 +163,46 @@
     (86 future-open-interest)
     (87 average-option-volume)
     (88 delayed-last-timestamp)
-    (89 shortable-shares)))
+    (89 shortable-shares)
+    (96 etf-nav-last)
+    (97 etf-nav-frozen-last)
+    (98 etf-nav-high)
+    (99 etf-nav-low)
+    (101 estimated-ipo-midpoint)
+    (102 final-ipo-price)
+    (103 delayed-yield-bid)
+    (104 delayed-yield-ask)))
 
 (define tick-type-hash (apply hash (flatten tick-types)))
+
+(define generic-tick-requests
+  '((option-volume 100)
+    (option-open-interest 101)
+    (average-option-volume 105)
+    (implied-volatility 106)
+    (historical-high-low-stats 165)
+    (creditman-mark-price 220)
+    (auction 225)
+    (mark-price 232)
+    (rt-volume 233)
+    (inventory 236)
+    (fundamentals 258)
+    (news 292)
+    (trade-count 293)
+    (trade-rate 294)
+    (volume-rate 295)
+    (last-rth-trade 318)
+    (rt-trade-volume 375)
+    (rt-historical-volatility 411)
+    (ib-dividends 456)
+    (bond-factor-multiplier 460)
+    (etf-nav-last 577)
+    (ipo-price 586)
+    (delayed-mark 587)
+    (futures-open-interest 588)
+    (short-term-volume 595)
+    (etf-nav-high-low 614)
+    (creditman-slow-mark-price 619)
+    (etf-nav-frozen-last 623)))
+
+(define generic-tick-request-hash (apply hash (flatten generic-tick-requests)))

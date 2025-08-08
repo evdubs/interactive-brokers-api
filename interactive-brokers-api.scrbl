@@ -300,6 +300,8 @@ You will need to track the relationship between your request-id and your paramet
 
 When requesting market data for an option, you will also receive @racket[option-market-data-rsp]s.
 
+See @racket[generic-tick-requests] for the symbols to use for @racket[generic-tick-list].
+
 @defconstructor[([request-id integer? 0]
                  [contract-id integer? 0]
                  [symbol string? ""]
@@ -320,7 +322,7 @@ When requesting market data for an option, you will also receive @racket[option-
                  [delta-neutral-contract-id (or/c integer? #f) #f]
                  [delta-neutral-delta (or/c rational? #f) #f]
                  [delta-neutral-price (or/c rational? #f) #f]
-                 [generic-tick-list string? ""]
+                 [generic-tick-list (listof symbol?) (list)]
                  [snapshot boolean? #f]
                  [regulatory-snapshot boolean? #f]
                  [market-data-options string? ""])]{}

@@ -809,10 +809,10 @@
         (equal? "1" (list-ref details 25)) ; outside-rth
         (equal? "1" (list-ref details 26)) ; hidden
         (string->number (list-ref details 27)) ; discretionary-amount
-        ; take out the time-zone-name as ibkr gives us, e.g. US/Eastern instead of America/New_York
+        ; IBKR supplies tzids like US/Eastern which are deprecated.
+        ; An additional package like `tzdata-legacy` may need to be installed.
         (if (equal? "" (list-ref details 28))
-            #f (parse-moment (second (regexp-match #px"([0-9]{8} [0-9]{2}:[0-9]{2}:[0-9]{2}) [a-zA-Z/_]+"
-                                                   (list-ref details 28))) "yyyyMMdd HH:mm:ss")) ; good-after-time
+            #f (parse-moment (list-ref details 28) "yyyyMMdd HH:mm:ss VV")) ; good-after-time
         ; deprecated shares allocation
         (list-ref details 30) ; advisor-group
         (list-ref details 31) ; advisor-method
@@ -988,8 +988,7 @@
                        'time ; type
                        (match (list-ref details (+ 1 i)) ["a" 'and] ["o" 'or]) ; boolean-operator
                        (match (list-ref details (+ 2 i)) ["0" 'less-than] ["1" 'greater-than]) ; comparator
-                       (parse-moment (second (regexp-match #px"([0-9]{8} [0-9]{2}:[0-9]{2}:[0-9]{2}) [a-zA-Z/_]+"
-                                                           (list-ref details (+ 3 i)))) "yyyyMMdd HH:mm:ss") ; time
+                       (parse-moment (list-ref details (+ 3 i)) "yyyyMMdd HH:mm:ss VV") ; time
                        #f ; contract-id
                        #f ; exchange
                        #f ; trigger-method
@@ -1216,9 +1215,7 @@
                                (list-ref details 11) ; local-symbol
                                (list-ref details 12) ; trading-class
                                (list-ref details 13) ; execution-id
-                               ; take out the time-zone-name as ibkr gives us, e.g. US/Eastern instead of America/New_York
-                               (parse-moment (second (regexp-match #px"([0-9]{8} [0-9]{2}:[0-9]{2}:[0-9]{2}) [a-zA-Z/_]+"
-                                                                   (list-ref details 14))) "yyyyMMdd HH:mm:ss") ; timestamp
+                               (parse-moment (list-ref details 14) "yyyyMMdd HH:mm:ss VV") ; timestamp
                                (list-ref details 15) ; account
                                (list-ref details 16) ; executing-exchange
                                (list-ref details 17) ; side
@@ -1242,13 +1239,10 @@
     [(list-rest "17" request-id start-moment end-moment bar-count details)
      (historical-data-rsp
       (string->number request-id)
-      (parse-moment (second (regexp-match #px"([0-9]{8} [0-9]{2}:[0-9]{2}:[0-9]{2}) [a-zA-Z/_]+"
-                                          start-moment)) "yyyyMMdd HH:mm:ss")
-      (parse-moment (second (regexp-match #px"([0-9]{8} [0-9]{2}:[0-9]{2}:[0-9]{2}) [a-zA-Z/_]+"
-                                          end-moment)) "yyyyMMdd HH:mm:ss")
+      (parse-moment start-moment "yyyyMMdd HH:mm:ss VV")
+      (parse-moment end-moment "yyyyMMdd HH:mm:ss VV")
       (map (λ (i) (bar
-                   (parse-moment (second (regexp-match #px"([0-9]{8} [0-9]{2}:[0-9]{2}:[0-9]{2}) [a-zA-Z/_]+"
-                                                       (list-ref details (* i 8)))) "yyyyMMdd HH:mm:ss")
+                   (parse-moment (list-ref details (* i 8)) "yyyyMMdd HH:mm:ss VV")
                    (string->number (list-ref details (+ 1 (* i 8))))
                    (string->number (list-ref details (+ 2 (* i 8))))
                    (string->number (list-ref details (+ 3 (* i 8))))
@@ -1285,6 +1279,5 @@
       (rationalize (string->number theta) 1/1000000)
       (rationalize (string->number underlying-price) 1/1000000))]
     ; current timestamp
-    [(list "106" date-str) (parse-moment (second (regexp-match #px"([0-9]{8} [0-9]{2}:[0-9]{2}:[0-9]{2}) [a-zA-Z/_]+"
-                                                               date-str)) "yyyyMMdd HH:mm:ss")]
+    [(list "106" date-str) (parse-moment date-str "yyyyMMdd HH:mm:ss VV")]
     [_ (string-split (bytes->string/utf-8 str) "\0")]))

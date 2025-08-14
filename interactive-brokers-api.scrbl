@@ -16,6 +16,13 @@ The overall design of this library is to use objects to represent the connection
  message, we stick to structs as we don't care about inheritance, nor do we need an ease-of-use creation method as the library creates
  the fully-filled-in instances. This is maybe a weird design.
 
+With the release of Debian Trixie in early August 2025, it was noticed that older timezones like "US/Eastern" were no longer supplied
+ in the default operating system `zoneinfo` files, even though IBKR uses them. If you have errors like:
+
+"Unable to match pattern [VV] against input "US/Eastern" [,bt for context]"
+
+then you may need to install a package like `tzdata-legacy` for these older timezones.
+
 @(require racket/class
           racket/contract)
 @(require (for-label racket/base

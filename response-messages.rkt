@@ -1215,7 +1215,9 @@
                                (list-ref details 11) ; local-symbol
                                (list-ref details 12) ; trading-class
                                (list-ref details 13) ; execution-id
-                               (parse-moment (list-ref details 14) "yyyyMMdd HH:mm:ss VV") ; timestamp
+                               (if (string-contains? (list-ref details 14) "-")
+                                   (parse-moment (string-append (list-ref details 14) "Z") "yyyyMMdd-HH:mm:ssX")
+                                   (parse-moment (list-ref details 14) "yyyyMMdd HH:mm:ss VV")) ; timestamp
                                (list-ref details 15) ; account
                                (list-ref details 16) ; executing-exchange
                                (list-ref details 17) ; side

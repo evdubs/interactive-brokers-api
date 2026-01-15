@@ -15,6 +15,7 @@
          executions-req%
          ibkr-msg%
          historical-data-req%
+         historical-ticks-req%
          market-data-req%
          market-data-type-req%
          open-orders-req%
@@ -292,6 +293,84 @@
            "")
        (if keep-up-to-date "1" "0") "\0"
        chart-options "\0"))))
+
+(define/contract historical-ticks-req%
+  (class/c (inherit-field [msg-id integer?]
+                          [version integer?])
+           (init-field [request-id integer?]
+                       [contract-id integer?]
+                       [symbol string?]
+                       [security-type (or/c 'stk 'opt 'fut 'cash 'bond 'cfd 'fop 'war 'iopt 'fwd 'bag
+                                            'ind 'bill 'fund 'fixed 'slb 'news 'cmdty 'bsk 'icu 'ics #f)]
+                       [expiry (or/c date? #f)]
+                       [strike rational?]
+                       [right (or/c 'call 'put #f)]
+                       [multiplier (or/c rational? #f)]
+                       [exchange string?]
+                       [primary-exchange string?]
+                       [currency string?]
+                       [local-symbol string?]
+                       [trading-class string?]
+                       [include-expired boolean?]
+                       [start-moment moment?]
+                       [end-moment moment?]
+                       [number-of-ticks integer?]
+                       [what-to-show (or/c 'midpoint 'bid-ask 'trades)]
+                       [use-rth boolean?]
+                       [ignore-size boolean?]
+                       [misc-options (listof string?)]))
+  (class* ibkr-msg%
+    (req-msg<%>)
+    (super-new [msg-id 96]
+               [version 0])
+    (inherit-field msg-id version)
+    (init-field [request-id 0]
+                [contract-id 0]
+                [symbol ""]
+                [security-type #f]
+                [expiry #f]
+                [strike 0]
+                [right #f]
+                [multiplier #f]
+                [exchange ""]
+                [primary-exchange ""]
+                [currency ""]
+                [local-symbol ""]
+                [trading-class ""]
+                [include-expired #f]
+                [start-moment (now/moment)]
+                [end-moment (now/moment)]
+                [number-of-ticks 1]
+                [what-to-show 'midpoint]
+                [use-rth #f]
+                [ignore-size #f]
+                [misc-options (list)])
+    (define/public (->string)
+      (string-append
+       (number->string msg-id) "\0"
+       ; version is unused for this request message
+       (number->string request-id) "\0"
+       (number->string contract-id) "\0"
+       symbol "\0"
+       (if (symbol? security-type) (string-upcase (symbol->string security-type)) "") "\0"
+       (if (date? expiry) (~t expiry "yyyyMMdd") "") "\0"
+       (real->decimal-string strike 2) "\0"
+       (if (symbol? right) (string-upcase (substring (symbol->string right) 0 1)) "") "\0"
+       (if (rational? multiplier) (number->string multiplier) "") "\0"
+       exchange "\0"
+       primary-exchange "\0"
+       currency "\0"
+       local-symbol "\0"
+       trading-class "\0"
+       (if include-expired "1" "0") "\0"
+       (~t (adjust-timezone start-moment "UTC") "yyyyMMdd-HH:mm:ss") "\0"
+       (~t (adjust-timezone end-moment "UTC") "yyyyMMdd-HH:mm:ss") "\0"
+       (number->string number-of-ticks) "\0"
+       (string-replace (string-upcase (symbol->string what-to-show)) "-" "_") "\0"
+       (if use-rth "1" "0") "\0"
+       (if ignore-size "1" "0") "\0"
+       "\0" ; misc-options is 'reserved for internal use'
+       ))))
 
 (define/contract market-data-req%
   (class/c (inherit-field [msg-id integer?]

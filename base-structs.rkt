@@ -35,6 +35,20 @@
      (security-type (or/c 'stk 'opt 'fut 'cash 'bond 'cfd 'fop 'war 'iopt 'fwd 'bag
                           'ind 'bill 'fund 'fixed 'slb 'news 'cmdty 'bsk 'icu 'ics #f))
      (symbol (or/c string? #f)))]
+  [struct historical-tick
+    ((moment moment?)
+     (price (or/c rational? #f))
+     (size (or/c rational? #f))
+     (exchange (or/c string? #f))
+     (special-conditions (or/c string? #f))
+     (past-limit boolean?)
+     (unreported boolean?)
+     (bid-price (or/c rational? #f))
+     (bid-size (or/c rational? #f))
+     (ask-price (or/c rational? #f))
+     (ask-size (or/c rational? #f))
+     (past-high boolean?)
+     (past-low boolean?))]
   [generic-tick-request-hash (hash/c symbol? integer?)]
   [tick-type-hash (hash/c integer? symbol?)]))
 
@@ -70,6 +84,22 @@
    trigger-method
    security-type
    symbol)
+  #:transparent)
+
+(struct historical-tick
+  (moment
+   price
+   size
+   exchange
+   special-conditions
+   past-limit
+   unreported
+   bid-price
+   bid-size
+   ask-price
+   ask-size
+   past-high
+   past-low)
   #:transparent)
 
 ; defined as a list of lists in case we need a map of symbol -> int in the future

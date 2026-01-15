@@ -225,7 +225,7 @@ will retrieve all executions within a week.
 
 @defclass[historical-data-req% ibkr-msg% (req-msg<%>)]{
 
-Request message to receive @racket[historical-data-rsp]s. The interesting part of this response are the @racket[bar]s
+Request message to receive @racket[historical-data-rsp]s. The interesting part of this response is the list of @racket[bar]s
  that are sent back and can be used for display in a chart. As an example,
 
 @racketblock[
@@ -283,6 +283,56 @@ You will need to track the relationship between your request-id and your paramet
 Request message to stop receiving @racket[historical-data-rsp]s.
 
 @defconstructor[([request-id integer? 0])]{}
+
+}
+
+@subsection{Historical Ticks}
+
+@defclass[historical-ticks-req% ibkr-msg% (req-msg<%>)]{
+
+Request message to receive @racket[historical-ticks-rsp]s. The returned list of @racket[historical-tick]s are used in TWS's
+ Time and Sales list. As an example,
+
+@racketblock[
+(send ibkr send-msg (new historical-ticks-req%
+                         [request-id 87]
+			 [symbol "UPS"]
+			 [security-type 'stk]
+			 [exchange "SMART"]
+			 [currency "USD"]))
+]
+
+You will need to track the relationship between your request-id and your parameters as the returned @racket[historical-ticks-rsp]s
+ will not have the symbol, security-type, etc. information.
+
+@defconstructor[([request-id integer? 0]
+                 [contract-id integer? 0]
+                 [symbol string? ""]
+                 [security-type (or/c 'stk 'opt 'fut 'cash 'bond 'cfd
+				      'fop 'war 'iopt 'fwd 'bag 'ind
+				      'bill 'fund 'fixed 'slb 'news 'cmdty
+				      'bsk 'icu 'ics #f) #f]
+                 [expiry (or/c date? #f) #f]
+                 [strike rational? 0]
+                 [right (or/c 'call 'put #f) #f]
+                 [multiplier (or/c rational? #f) #f]
+                 [exchange string? ""]
+                 [primary-exchange string? ""]
+                 [currency string? ""]
+                 [local-symbol string? ""]
+                 [trading-class string? ""]
+                 [include-expired boolean? #f]
+		 [start-moment moment? (now/moment)]
+                 [end-moment moment? (now/moment)]
+                 [number-of-ticks integer? 1]
+                 [what-to-show (or/c 'midpoint 'bid-ask 'trades) 'midpoint]
+                 [use-rth boolean? #f]
+                 [ignore-size boolean? #f]
+                 [misc-options (listof string?) (list)])]{}
+
+}
+
+@racket[misc-options] is currently reserved for IBKR internal use.
 
 }
 
@@ -727,6 +777,15 @@ Be sure to check for @racket[err-rsp]s if you are not receiving historical data 
 
 }
 
+@defstruct[historical-ticks-rsp
+((request-id integer?)
+ (done boolean?)
+ (ticks (listof historical-tick?)))]{
+
+You may receive several responses before receiving the final response with @racket[done] set to @racket[#t].
+
+}
+
 @defstruct[market-data-rsp
 ((request-id integer?)
  (type symbol?)
@@ -1050,6 +1109,27 @@ Use @racket[condition] within @racket[place-order-req%] when you want your order
 ]
 
 Where fields are not required for a given condition type, they are not sent to the server and are effectively ignored.
+
+}
+
+@defstruct[historical-tick
+((moment moment?)
+ (price (or/c rational? #f))
+ (size (or/c rational? #f))
+ (exchange (or/c string? #f))
+ (special-conditions (or/c string? #f))
+ (past-limit boolean?)
+ (unreported boolean?)
+ (bid-price (or/c rational? #f))
+ (bid-size (or/c rational? #f))
+ (ask-price (or/c rational? #f))
+ (ask-size (or/c rational? #f))
+ (past-high boolean?)
+ (past-low boolean?))]{
+
+This struct is returned as part of a @racket[historical-ticks-rsp]. This struct encapsulates the three types of tick responses:
+ midpoint, bid-ask, and trades. Bid/ask/past values will be @racket[#f] when requesting midpoint and trades ticks. Price/size/exch
+ values will be @racket[#f] when requesting bid-ask ticks.
 
 }
 

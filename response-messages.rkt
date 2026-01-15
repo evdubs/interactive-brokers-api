@@ -125,6 +125,10 @@
      (start-moment moment?)
      (end-moment moment?)
      (bars (listof bar?)))]
+  [struct historical-ticks-rsp
+    ((request-id integer?)
+     (done boolean?)
+     (ticks (listof historical-tick?)))]
   [struct market-data-rsp
     ((request-id integer?)
      (type symbol?)
@@ -460,6 +464,12 @@
    bars)
   #:transparent)
 
+(struct historical-ticks-rsp
+  (request-id
+   done
+   ticks)
+  #:transparent)
+
 (struct market-data-rsp
   (request-id
    type
@@ -685,6 +695,7 @@
                    err-rsp?
                    execution-rsp?
                    historical-data-rsp?
+                   historical-ticks-rsp?
                    (listof string?)
                    market-data-rsp?
                    moment?
@@ -1253,18 +1264,6 @@
                    (string->number (list-ref details (+ 6 (* i 8))))
                    (string->number (list-ref details (+ 7 (* i 8))))))
            (range (string->number bar-count))))]
-    ; commission report
-    [(list-rest "59" version details) (commission-report-rsp
-                                       (list-ref details 0) ; execution-id
-                                       (string->number (list-ref details 1)) ; commission
-                                       (list-ref details 2) ; currency
-                                       (if (equal? "1.7976931348623157E308" (list-ref details 3))
-                                           #f (string->number (list-ref details 3))) ; realized-pnl
-                                       (if (equal? "1.7976931348623157E308" (list-ref details 4))
-                                           #f (string->number (list-ref details 4))) ; yield
-                                       (if (equal? "" (list-ref details 5))
-                                           #f (string->number (list-ref details 5))) ; yield-redemption-date
-                                       )]
     ; option market data
     [(list "21" request-id tick-type tick-attrib implied-volatility
            delta price pv-dividend gamma vega theta underlying-price)
@@ -1280,6 +1279,82 @@
       (rationalize (string->number vega) 1/1000000)
       (rationalize (string->number theta) 1/1000000)
       (rationalize (string->number underlying-price) 1/1000000))]
+    ; commission report
+    [(list-rest "59" version details)
+     (commission-report-rsp
+      (list-ref details 0) ; execution-id
+      (string->number (list-ref details 1)) ; commission
+      (list-ref details 2) ; currency
+      (if (equal? "1.7976931348623157E308" (list-ref details 3))
+          #f (string->number (list-ref details 3))) ; realized-pnl
+      (if (equal? "1.7976931348623157E308" (list-ref details 4))
+          #f (string->number (list-ref details 4))) ; yield
+      (if (equal? "" (list-ref details 5))
+          #f (string->number (list-ref details 5))) ; yield-redemption-date
+      )]
+    ; historical ticks
+    [(list-rest "96" request-id tick-count details)
+     (historical-ticks-rsp
+      (string->number request-id)
+      (equal? "1" (list-ref details (* (string->number tick-count) 4))) ; done
+      (map (λ (i) (historical-tick
+                   (posix->moment (string->number (list-ref details (* i 4)))) ; moment
+                   (string->number (list-ref details (+ 2 (* i 4)))) ; price
+                   (string->number (list-ref details (+ 3 (* i 4)))) ; size
+                   #f ; exchange
+                   #f ; special-conditions
+                   #f ; past-limit
+                   #f ; unreported
+                   #f ; bid-price
+                   #f ; bid-size
+                   #f ; ask-price
+                   #f ; ask-size
+                   #f ; past-high
+                   #f ; past-low
+                   ))
+           (range (string->number tick-count))))]
+    ; historical ticks bid ask
+    [(list-rest "97" request-id tick-count details)
+     (historical-ticks-rsp
+      (string->number request-id)
+      (equal? "1" (list-ref details (* (string->number tick-count) 6))) ; done
+      (map (λ (i) (historical-tick
+                   (posix->moment (string->number (list-ref details (* i 6)))) ; moment
+                   #f ; price
+                   #f ; size
+                   #f ; exchange
+                   #f ; special-conditions
+                   #f ; past-limit
+                   #f ; unreported
+                   (string->number (list-ref details (+ 2 (* i 6)))) ; bid-price
+                   (string->number (list-ref details (+ 4 (* i 6)))) ; bid-size
+                   (string->number (list-ref details (+ 3 (* i 6)))) ; ask-price
+                   (string->number (list-ref details (+ 5 (* i 6)))) ; ask-size
+                   (bitwise-bit-set? (string->number (list-ref details (+ 1 (* i 6)))) 0) ; past-high
+                   (bitwise-bit-set? (string->number (list-ref details (+ 1 (* i 6)))) 1) ; past-low
+                   ))
+           (range (string->number tick-count))))]
+    ; historical ticks last
+    [(list-rest "98" request-id tick-count details)
+     (historical-ticks-rsp
+      (string->number request-id)
+      (equal? "1" (list-ref details (* (string->number tick-count) 6))) ; done
+      (map (λ (i) (historical-tick
+                   (posix->moment (string->number (list-ref details (* i 6)))) ; moment
+                   (string->number (list-ref details (+ 2 (* i 6)))) ; price
+                   (string->number (list-ref details (+ 3 (* i 6)))) ; size
+                   (list-ref details (+ 4 (* i 6))) ; exchange
+                   (list-ref details (+ 5 (* i 6))) ; special-conditions
+                   (bitwise-bit-set? (string->number (list-ref details (+ 1 (* i 6)))) 0) ; past-limit
+                   (bitwise-bit-set? (string->number (list-ref details (+ 1 (* i 6)))) 1) ; unreported
+                   #f ; bid-price
+                   #f ; bid-size
+                   #f ; ask-price
+                   #f ; ask-size
+                   #f ; past-high
+                   #f ; past-low
+                   ))
+           (range (string->number tick-count))))]
     ; current timestamp
     [(list "106" date-str) (parse-moment date-str "yyyyMMdd HH:mm:ss VV")]
     [_ (string-split (bytes->string/utf-8 str) "\0")]))

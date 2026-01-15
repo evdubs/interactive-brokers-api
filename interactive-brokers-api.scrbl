@@ -330,8 +330,6 @@ You will need to track the relationship between your request-id and your paramet
                  [ignore-size boolean? #f]
                  [misc-options (listof string?) (list)])]{}
 
-}
-
 @racket[misc-options] is currently reserved for IBKR internal use.
 
 }

@@ -997,7 +997,7 @@
                        #f)] ; symbol
                  ["3" (condition
                        'time ; type
-                       (match (list-ref details (+ 1 i)) ["a" 'and] ["o" 'or]) ; boolean-operator
+                       (match (list-ref details (+ 1 i)) ["a" 'and] ["o" 'or] [_ 'or]) ; boolean-operator
                        (match (list-ref details (+ 2 i)) ["0" 'less-than] ["1" 'greater-than]) ; comparator
                        (parse-moment (list-ref details (+ 3 i)) "yyyyMMdd HH:mm:ss VV") ; time
                        #f ; contract-id
@@ -1007,7 +1007,7 @@
                        #f)] ; symbol
                  ["4" (condition
                        'margin ; type
-                       (match (list-ref details (+ 1 i)) ["a" 'and] ["o" 'or]) ; boolean-operator
+                       (match (list-ref details (+ 1 i)) ["a" 'and] ["o" 'or] [_ 'or]) ; boolean-operator
                        (match (list-ref details (+ 2 i)) ["0" 'less-than] ["1" 'greater-than]) ; comparator
                        (string->number (list-ref details (+ 3 i))) ; margin-percent
                        #f ; contract-id
@@ -1017,7 +1017,7 @@
                        #f)] ; symbol
                  ["5" (condition
                        'execution
-                       (match (list-ref details (+ 1 i)) ["a" 'and] ["o" 'or]) ; boolean-operator
+                       (match (list-ref details (+ 1 i)) ["a" 'and] ["o" 'or] [_ 'or]) ; boolean-operator
                        #f ; comparator
                        #f ; value
                        #f ; contract-id
@@ -1027,7 +1027,7 @@
                        (list-ref details (+ 4 i)))] ; symbol
                  ["6" (condition
                        'volume ; type
-                       (match (list-ref details (+ 1 i)) ["a" 'and] ["o" 'or]) ; boolean-operator
+                       (match (list-ref details (+ 1 i)) ["a" 'and] ["o" 'or] [_ 'or]) ; boolean-operator
                        (match (list-ref details (+ 2 i)) ["0" 'less-than] ["1" 'greater-than]) ; comparator
                        (string->number (list-ref details (+ 3 i))) ; volume
                        (string->number (list-ref details (+ 4 i))) ; contract-id
@@ -1037,7 +1037,7 @@
                        #f)] ; symbol
                  ["7"(condition
                        'percent-change ; type
-                       (match (list-ref details (+ 1 i)) ["a" 'and] ["o" 'or]) ; boolean-operator
+                       (match (list-ref details (+ 1 i)) ["a" 'and] ["o" 'or] [_ 'or]) ; boolean-operator
                        (match (list-ref details (+ 2 i)) ["0" 'less-than] ["1" 'greater-than]) ; comparator
                        (string->number (list-ref details (+ 3 i))) ; percent-change
                        (string->number (list-ref details (+ 4 i))) ; contract-id

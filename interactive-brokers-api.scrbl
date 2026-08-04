@@ -13,7 +13,7 @@ This implementation is based on the Java TWS API version 10.30.01. The protocol 
 The overall design of this library is to use objects to represent the connection and request messages and to use structs to represent
  response messages. Using objects for the connection and request messages seemed to make the process of creation easier as there are many
  fields that are often not cared about and can be omitted. We also use an interface and a base class for request messages. For response
- message, we stick to structs as we don't care about inheritance, nor do we need an ease-of-use creation method as the library creates
+ messages, we stick to structs as we don't care about inheritance, nor do we need an ease-of-use creation method as the library creates
  the fully-filled-in instances. This is maybe a weird design.
 
 With the release of Debian Trixie in early August 2025, it was noticed that older timezones like "US/Eastern" were no longer supplied

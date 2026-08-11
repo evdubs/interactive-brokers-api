@@ -48,6 +48,8 @@
                        [port-no port-number?]
                        [write-messages boolean?])
            [connect (->m void?)]
+           [connected? (->m boolean?)]
+           [disconnect (->m void?)]
            [send-msg (->m (is-a?/c req-msg<%>) void?)])
   (class object%
     (super-new)
@@ -78,16 +80,20 @@
     ; and not get.
     (define req-rsp-channel (make-channel))
 
-    (define-values (ibkr-in ibkr-out) (tcp-connect hostname port-no))
+    (define ibkr-in #f)
+
+    (define ibkr-out #f)
     
     (define/public (connect)
+      (set!-values (ibkr-in ibkr-out) (tcp-connect hostname port-no))
       (file-stream-buffer-mode ibkr-in 'none)
       (file-stream-buffer-mode ibkr-out 'none)
 
-      ; read from ibkr-in forever
+      ; read from ibkr-in while the port is open
       (thread
        (λ () (do ()
-                 (#f)
+                 ((or (port-closed? ibkr-in)
+                      (port-closed? ibkr-out)))
                (let* ([str (read-sized-str ibkr-in)]
                       [_ (cond [write-messages (display "Received: ") (writeln (string-split (bytes->string/utf-8 str) "\0"))])]
                       [msg (parse-msg str)])
@@ -123,6 +129,16 @@
       ; EClient.startAPI
       (write-sized-str (send (new start-api-req% [client-id client-id]) ->string) ibkr-out)
       (channel-put req-rsp-channel #f))
+
+    (define/public (disconnect)
+      (cond [(port? ibkr-in) (tcp-abandon-port ibkr-in)])
+      (cond [(port? ibkr-out) (tcp-abandon-port ibkr-out)]))
+
+    (define/public (connected?)
+      (and (port? ibkr-in)
+           (not (port-closed? ibkr-in))
+           (port? ibkr-out)
+           (not (port-closed? ibkr-out))))
 
     (define/public (send-msg msg)
       (cond [write-messages (display "Sending: ") (writeln (string-split (send msg ->string) "\0"))])

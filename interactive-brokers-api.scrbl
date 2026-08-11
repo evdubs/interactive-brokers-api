@@ -94,9 +94,21 @@ The @racket[write-messages] field, when set to @racket[#t], will @racket[write] 
 @defmethod[(connect) void?]{
 
 When called, a @racket[thread] is created to read from the socket and call the appropriate response handler with the received message.
- Currently, this thread will die when the connection is interruped. When this happens, I just create a new @racket[ibkr-session%] to
- connect again rather than attempt to call @racket[connect] on the existing session.
+ Currently, this thread will die when the connection is interruped. Calling @[connect] again when TWS is back up should re-establish
+ the connection and start a new thread.
  
+}
+
+@defmethod[(connected?) boolean?]{
+
+Returns the liveness of the TCP connection that is opened from the call to @racket[connect].
+
+}
+
+@defmethod[(disconnect) void?]{
+
+This method uses @racket[tcp-abandon-port] to disconnect from TWS.
+
 }
 
 @defmethod[(send-msg [msg (is-a?/c req-msg<%>)]) void?]{}

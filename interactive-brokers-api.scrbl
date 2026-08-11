@@ -94,7 +94,7 @@ The @racket[write-messages] field, when set to @racket[#t], will @racket[write] 
 @defmethod[(connect) void?]{
 
 When called, a @racket[thread] is created to read from the socket and call the appropriate response handler with the received message.
- Currently, this thread will die when the connection is interruped. Calling @[connect] again when TWS is back up should re-establish
+ Currently, this thread will die when the connection is interruped. Calling @racket[connect] again when TWS is back up should re-establish
  the connection and start a new thread.
  
 }
